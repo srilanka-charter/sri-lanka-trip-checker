@@ -138,7 +138,7 @@ export const appRouter = router({
 
 ${DISTANCE_DATA_FOR_PROMPT}
 
-【出力形式】必ず以下のJSON形式で返すこと（マークダウンコードブロックなし）:
+【出力形式】必ず以下のJSON形式のみで返すこと。他のキーを追加しないこと。マークダウンコードブロックなし。
 {
   "days": [
     {
@@ -159,9 +159,7 @@ ${DISTANCE_DATA_FOR_PROMPT}
   "route": ["コロンボ", "シーギリヤ", "キャンディ", "コロンボ"]
 }
 
-judgmentは "OK"、"A"、"B" のいずれか。
-routeは地図描画用の正規地名リスト（出発地→経由地→終着地の順）。
-isPickupは迎車日（コロンボ→出発地の前日移動）、isReturnは回送日（終着地→コロンボの翌日移動）、isStayは宿泊のみの日。`;
+judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規地名リスト（出発地→経由地→終着地の順）。isPickupは迎車日、isReturnは回送日、isStayは宿泊のみの日。上記のキー以外は絶対に追加しないこと。`;
 
         const userPrompt = `以下の条件で旅程を生成してください。
 
@@ -184,7 +182,11 @@ isPickupは迎車日（コロンボ→出発地の前日移動）、isReturnは�
 
         const content = response.choices[0]?.message?.content;
         if (typeof content !== "string") {
-          throw new Error("AI旅程生成の応答が不正です");
+          const debugInfo = JSON.stringify({
+            choicesLength: response.choices?.length ?? 0,
+            firstChoice: response.choices?.[0] ?? null,
+          });
+          throw new Error(`AI旅程生成の応答が不正です: ${debugInfo}`);
         }
 
         let parsed: {
