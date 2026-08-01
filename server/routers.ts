@@ -5,12 +5,12 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 
-// gpt-5はOPENAI_API_BASE経由でのみ動作する
+// gpt-5はBUILT_IN_FORGE_API_URL経由で動作する（api.manus.imは外部トークン不可）
 async function callGpt5(systemPrompt: string, userPrompt: string): Promise<string> {
-  const apiBase = (process.env.OPENAI_API_BASE ?? "https://api.manus.im/api/llm-proxy/v1").replace(/\/$/, "");
-  const apiKey = process.env.OPENAI_API_KEY ?? "";
+  const apiBase = (process.env.BUILT_IN_FORGE_API_URL ?? "https://forge.manus.ai").replace(/\/$/, "");
+  const apiKey = process.env.BUILT_IN_FORGE_API_KEY ?? "";
 
-  const res = await fetch(`${apiBase}/chat/completions`, {
+  const res = await fetch(`${apiBase}/v1/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
