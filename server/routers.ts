@@ -21,7 +21,7 @@ async function callGpt5(systemPrompt: string, userPrompt: string): Promise<strin
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 8000,
+      max_tokens: 16000,
     }),
   });
 
