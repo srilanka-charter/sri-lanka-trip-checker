@@ -444,21 +444,6 @@ export default function Home() {
                 />
               )}
 
-              {/* コピー＆問い合わせボタン（B判定以外：元プランの下） */}
-              {!isJudgmentB && (
-                <ContactSection
-                  onCopy={handleCopyItinerary}
-                  copied={copied}
-                />
-              )}
-
-              {/* コピー＆問い合わせボタン（B判定：代替案の下） */}
-              {isJudgmentB && itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
-                <ContactSection
-                  onCopy={handleCopyItinerary}
-                  copied={copied}
-                />
-              )}
             </div>
           ) : (
             /* Placeholder when no result */
@@ -601,6 +586,27 @@ function AlternativePlanCard({
   startPoint: string;
   endPoint: string;
 }) {
+  const [altCopied, setAltCopied] = useState(false);
+
+  const handleAltCopy = useCallback(async () => {
+    const text = alt.markdownTable;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setAltCopied(true);
+      setTimeout(() => setAltCopied(false), 2500);
+    } catch {
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setAltCopied(true);
+      setTimeout(() => setAltCopied(false), 2500);
+    }
+  }, [alt.markdownTable]);
+
   // 代替案のrouteを正規化して地図用に構築
   const altRoute = (() => {
     const base: string[] = (alt.route ?? [])
@@ -690,6 +696,9 @@ function AlternativePlanCard({
             <Streamdown>{alt.markdownTable}</Streamdown>
           </div>
         </div>
+
+        {/* 代替案ごとのコピー＆問い合わせボタン */}
+        <ContactSection onCopy={handleAltCopy} copied={altCopied} />
       </div>
     </div>
   );
