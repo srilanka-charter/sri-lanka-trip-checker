@@ -117,14 +117,9 @@ export default function TripMap({ routeLocations }: TripMapProps) {
     // Fit bounds
     if (routeCoords.length > 0) {
       const bounds = new google.maps.LatLngBounds();
-      // Always include Sri Lanka bounds for context
-      const sriLankaBounds = [
-        { lat: 9.8, lng: 79.5 },
-        { lat: 5.9, lng: 81.9 },
-      ];
-      sriLankaBounds.forEach(c => bounds.extend(c));
       routeCoords.forEach(c => bounds.extend(c));
-      map.fitBounds(bounds, { top: 50, right: 30, bottom: 50, left: 30 });
+      // ルート全体が余裕を持って収まるよう大きめのpaddingを設定
+      map.fitBounds(bounds, { top: 80, right: 80, bottom: 80, left: 80 });
     }
   }, [routeLocations, mapReady]);
 

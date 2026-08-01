@@ -185,7 +185,7 @@ export function MapView({
   }, [init]);
 
   return (
-    <div className={cn("w-full h-[500px] relative", className)} style={style}>
+    <div className={cn("w-full h-full relative", className)} style={style}>
       <div ref={mapContainer} className="w-full h-full" />
       {loadError && (
         <div className="absolute inset-0 flex items-center justify-center bg-amber-50 text-amber-800 text-sm p-4 text-center">

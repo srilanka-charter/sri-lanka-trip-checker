@@ -333,8 +333,8 @@ export default function Home() {
           {/* Map - fixed height */}
           <div
             style={{
-              height: "520px",
-              minHeight: "400px",
+              height: "70vh",
+              minHeight: "500px",
               width: "100%",
               position: "relative",
               borderBottom: "2px solid #E8D5A3",
