@@ -3,7 +3,6 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
-import { invokeLLM } from "./_core/llm";
 
 // gpt-5はBUILT_IN_FORGE_API_URL経由で動作する（api.manus.imは外部トークン不可）
 async function callGpt5(systemPrompt: string, userPrompt: string): Promise<string> {
@@ -156,21 +155,27 @@ export const appRouter = router({
         const niceToVisitText = niceToVisit.length > 0 ? niceToVisit.join("、") : "なし";
         const dateRangeText = startDate && endDate ? `${startDate}〜${endDate}（${numDays}日間）` : `${numDays}日間`;
 
-        const systemPrompt = `あなたはスリランカ専門のドライバーガイド会社のシステムです。必ずjson形式で返答してください。
+        const systemPrompt = `あなたはスリランカ専門のドライバーガイド会社のシステムです。必ずjson形式のみで返答してください。
 以下のルールに厳密に従い、日本語で旅程を生成してください。
 
 【ルール】
 1. 出発地・終着地は必ず指定された場所にすること
 2. 必須スポットは必ず全て含めること
 3. 希望スポットは距離・時間の余裕があれば含めること
-4. 1日の走行距離の目安は最大300km前後（超える場合はA/B判定）
+4. 1日の走行距離の目安は最大300km前後
 5. コロンボ/空港/ネゴンボ以外の場所から出発する場合は、前日にコロンボから迎車が必要（0日目として追加）
 6. コロンボ/空港/ネゴンボ以外の場所に終着する場合は、翌日コロンボへの回送が必要（最終日+1として追加）
 7. コロンボから出発してシーギリヤとキャンディ両方を訪れる場合は、シーギリヤを先にすること
-8. 1日の走行時間が6時間を超える日が1日でもあればA判定、総距離が日数×150kmを大幅に超えればB判定
+8. 1日の走行時間が6時間を超える日がある場合、または総距離が日数×150kmを大幅に超える場合は、代替案を提案すること
 9. 距離・時間は必ず下記の実測データを使用すること（推測しないこと）
 
 ${DISTANCE_DATA_FOR_PROMPT}
+
+【代替案について】
+- 1日の走行時間が6時間を超える日がある場合、または総距離が日数×150kmを大幅に超える場合のみ、alternativesを生成すること
+- 問題がない場合はalternativesは空配列にすること
+- 代替案は最大2つまで
+- 各代替案は「スポットを1つ削減」「宿泊地を変更」「順序を変更」などの具体的な調整を提案すること
 
 【出力形式】必ず以下のJSON形式のみで返すこと。他のキーを追加しないこと。マークダウンコードブロックなし。
 {
@@ -187,13 +192,19 @@ ${DISTANCE_DATA_FOR_PROMPT}
     }
   ],
   "totalDistance": 500,
-  "judgment": "OK",
-  "judgmentMessage": "判定の説明文",
   "specialNotes": ["特記事項"],
-  "route": ["コロンボ", "シーギリヤ", "キャンディ", "コロンボ"]
+  "route": ["コロンボ", "シーギリヤ", "キャンディ", "コロンボ"],
+  "alternatives": [
+    {
+      "adjustment": "調整内容の説明",
+      "merit": "この代替案のメリット",
+      "caution": "注意点",
+      "markdownTable": "| 日付 | 主な区間 | 距離 | 走行時間の目安 |\n| --- | --- | ---: | --- |\n| 1日目 | コロンボ → キャンディ | 120km | 3時間 |"
+    }
+  ]
 }
 
-judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規地名リスト（出発地→経由地→終着地の順）。isPickupは迎車日、isReturnは回送日、isStayは宿泊のみの日。上記のキー以外は絶対に追加しないこと。`;
+routeは地図描画用の正規地名リスト（出発地→経由地→終着地の順）。isPickupは迎車日、isReturnは回送日、isStayは宿泊のみの日。alternativesは問題がある場合のみ生成し、問題がない場合は空配列。上記のキー以外は絶対に追加しないこと。`;
 
         const userPrompt = `以下の条件で旅程を生成してください。
 
@@ -218,10 +229,14 @@ judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規�
             isStay?: boolean;
           }>;
           totalDistance: number;
-          judgment: "OK" | "A" | "B";
-          judgmentMessage: string;
           specialNotes: string[];
           route: string[];
+          alternatives: Array<{
+            adjustment: string;
+            merit: string;
+            caution: string;
+            markdownTable: string;
+          }>;
         };
 
         try {
@@ -245,113 +260,17 @@ judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規�
         markdownTable += `\n総走行距離の目安：${parsed.totalDistance}km前後\n\n`;
         markdownTable += "※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。";
 
-        return {
-          days: parsed.days,
-          totalDistance: parsed.totalDistance,
-          totalDays: parsed.days.length,
-          judgment: parsed.judgment,
-          judgmentMessage: parsed.judgmentMessage,
-          specialNotes: parsed.specialNotes,
-          route: parsed.route,
-          markdownTable,
-        };
+          return {
+            days: parsed.days,
+            totalDistance: parsed.totalDistance,
+            totalDays: parsed.days.length,
+            specialNotes: parsed.specialNotes,
+            route: parsed.route,
+            alternatives: parsed.alternatives ?? [],
+            markdownTable,
+          };
       }),
 
-    analyzeItinerary: publicProcedure
-      .input(
-        z.object({
-          startPoint: z.string(),
-          endPoint: z.string(),
-          startDate: z.string().nullable(),
-          endDate: z.string().nullable(),
-          mustVisit: z.array(z.string()),
-          niceToVisit: z.array(z.string()),
-          markdownTable: z.string(),
-          totalDistance: z.number(),
-          totalDays: z.number(),
-          judgment: z.enum(["OK", "A", "B"]),
-          specialNotes: z.array(z.string()),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const {
-          startPoint,
-          endPoint,
-          startDate,
-          endDate,
-          mustVisit,
-          niceToVisit,
-          markdownTable,
-          totalDistance,
-          totalDays,
-          judgment,
-          specialNotes,
-        } = input;
-
-        const dateRange = startDate && endDate
-          ? `${startDate} 〜 ${endDate}`
-          : `${totalDays}日間`;
-
-        const mustVisitText = mustVisit.length > 0
-          ? mustVisit.join("、")
-          : "なし";
-
-        const niceToVisitText = niceToVisit.length > 0
-          ? niceToVisit.join("、")
-          : "なし";
-
-        const judgmentLabel =
-          judgment === "OK" ? "問題なし" :
-          judgment === "A" ? "一部移動が長め（A判定）" :
-          "移動範囲超過（B判定）";
-
-        const specialNotesText = specialNotes.length > 0
-          ? specialNotes.join("\n")
-          : "なし";
-
-        const systemPrompt = `あなたはスリランカ専門の旅行コンシェルジュです。
-スリランカの道路事情・観光スポット・季節・文化に精通しており、旅行者に対して親切で実用的なアドバイスを提供します。
-以下の旅程データをもとに、旅行者へのアドバイスと改善提案を日本語で提供してください。
-
-【回答形式】
-1. **旅程の総評**（2〜3文）
-2. **各日程のポイント**（各日について1〜2文のコメント）
-3. **スリランカ旅行のアドバイス**（道路状況、天候、文化的注意点など、3〜5項目）
-4. **改善提案**（もし改善できる点があれば、具体的に2〜3点）
-
-回答は具体的で実用的な内容にしてください。一般論ではなく、この旅程に特化したアドバイスをお願いします。`;
-
-        const userPrompt = `以下の旅程を分析してください。
-
-【旅程概要】
-- 旅行期間: ${dateRange}（${totalDays}日間）
-- 出発地: ${startPoint}
-- 終着地: ${endPoint}
-- 必須スポット: ${mustVisitText}
-- 希望スポット: ${niceToVisitText}
-- 総走行距離: ${totalDistance}km
-- 判定: ${judgmentLabel}
-- 特記事項: ${specialNotesText}
-
-【1日ごとの旅程表】
-${markdownTable}`;
-
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          model: "gpt-4o",
-          max_tokens: 2000,
-        });
-
-        const content = response.choices[0]?.message?.content;
-        if (typeof content !== "string") {
-          throw new Error("AI分析の応答が不正です");
-        }
-
-        return { analysis: content };
-      }),
   }),
 });
 

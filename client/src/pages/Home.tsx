@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback } from "react";
-import { MapPin, Calendar, Navigation, Star, Loader2, BrainCircuit } from "lucide-react";
+import { MapPin, Calendar, Navigation, Star, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -16,7 +16,13 @@ import { trpc } from "@/lib/trpc";
 import TripMap from "@/components/TripMap";
 import DateRangePicker from "@/components/DateRangePicker";
 import SpotSelector from "@/components/SpotSelector";
-import type { AlternativePlan } from "@/lib/itineraryPlanner";
+
+type AlternativePlan = {
+  adjustment: string;
+  merit: string;
+  caution: string;
+  markdownTable: string;
+};
 import { LOCATIONS } from "@/lib/locations";
 
 export default function Home() {
@@ -45,28 +51,20 @@ export default function Home() {
     }>;
     totalDistance: number;
     totalDays: number;
-    judgment: "OK" | "A" | "B";
-    judgmentMessage: string;
     specialNotes: string[];
     route: string[];
     markdownTable: string;
-    alternatives?: AlternativePlan[];
+    alternatives: Array<{
+      adjustment: string;
+      merit: string;
+      caution: string;
+      markdownTable: string;
+    }>;
   } | null>(null);
   const [routeLocations, setRouteLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-
-  // AI分析機能
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const analyzeItinerary = trpc.ai.analyzeItinerary.useMutation({
-    onSuccess: (data) => {
-      setAiAnalysis(data.analysis);
-    },
-    onError: (error) => {
-      console.error("AI分析エラー:", error);
-    },
-  });
 
   // ChatGPT旅程生成
   const generateItinerary = trpc.ai.generateItinerary.useMutation({
@@ -74,14 +72,10 @@ export default function Home() {
       setItineraryResult(data);
       setRouteLocations(data.route);
       // markdownTableを使って結果表示用テキストを構築
-      const judgmentLabel =
-        data.judgment === "OK" ? "✅ 問題なし（OK判定）" :
-        data.judgment === "A" ? "⚠️ 一部移動が長め（A判定）" :
-        "❌ 移動範囲超過（B判定）";
       const specialNotesSection = data.specialNotes.length > 0
         ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
         : "";
-      const markdown = `## 旅程表\n\n${data.markdownTable}\n\n**判定: ${judgmentLabel}**\n${data.judgmentMessage}${specialNotesSection}`;
+      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}`;
       setResult(markdown);
       setShowResult(true);
       setIsLoading(false);
@@ -98,24 +92,6 @@ export default function Home() {
     },
   });
 
-  const handleAiAnalyze = useCallback(() => {
-    if (!itineraryResult) return;
-    setAiAnalysis(null);
-    analyzeItinerary.mutate({
-      startPoint,
-      endPoint,
-      startDate: startDate ? startDate.toLocaleDateString("ja-JP") : null,
-      endDate: endDate ? endDate.toLocaleDateString("ja-JP") : null,
-      mustVisit,
-      niceToVisit,
-      markdownTable: itineraryResult.markdownTable,
-      totalDistance: itineraryResult.totalDistance,
-      totalDays: itineraryResult.totalDays,
-      judgment: itineraryResult.judgment,
-      specialNotes: itineraryResult.specialNotes,
-    });
-  }, [itineraryResult, startPoint, endPoint, startDate, endDate, mustVisit, niceToVisit, analyzeItinerary]);
-
   const handleGenerate = useCallback(() => {
     const errs: string[] = [];
     if (!startPoint) errs.push("出発地を選択してください");
@@ -127,8 +103,6 @@ export default function Home() {
     }
     setErrors([]);
     setIsLoading(true);
-    setAiAnalysis(null);
-
     // 日数計算
     const diff = startDate && endDate
       ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
@@ -157,7 +131,6 @@ export default function Home() {
     setShowResult(false);
     setErrors([]);
     setItineraryResult(null);
-    setAiAnalysis(null);
   };
 
   return (
@@ -339,28 +312,6 @@ export default function Home() {
                 </Button>
               )}
 
-              {/* AI分析ボタン */}
-              {showResult && itineraryResult && (
-                <Button
-                  className="w-full h-11 text-sm font-semibold transition-all duration-200 active:scale-[0.98]"
-                  style={{
-                    background: analyzeItinerary.isPending
-                      ? "#6B7280"
-                      : "linear-gradient(135deg, #2D5A27 0%, #1A3D18 100%)",
-                    color: "white",
-                    border: "none",
-                    boxShadow: "0 4px 12px rgba(45,90,39,0.3)",
-                  }}
-                  onClick={handleAiAnalyze}
-                  disabled={analyzeItinerary.isPending}
-                >
-                  {analyzeItinerary.isPending ? (
-                    <><Loader2 size={16} className="animate-spin mr-2" />AI分析中...</>
-                  ) : (
-                    <><BrainCircuit size={16} className="mr-2" />AIで旅程を分析する</>
-                  )}
-                </Button>
-              )}
             </div>
           </div>
         </div>
@@ -432,83 +383,6 @@ export default function Home() {
               {/* Alternative Plans - rendered as rich cards */}
               {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
                 <AlternativePlansSection alternatives={itineraryResult.alternatives} />
-              )}
-
-              {/* AI分析結果 */}
-              {(aiAnalysis || analyzeItinerary.isPending || analyzeItinerary.isError) && (
-                <div className="mt-8">
-                  <div
-                    className="flex items-center gap-2 mb-5 pb-3"
-                    style={{ borderBottom: "2px solid #E8D5A3" }}
-                  >
-                    <div className="w-1 h-6 rounded-full" style={{ background: "#2D5A27" }} />
-                    <h3
-                      className="text-xl font-bold flex items-center gap-2"
-                      style={{ fontFamily: "'Playfair Display', serif", color: "#2D5A27" }}
-                    >
-                      <BrainCircuit size={20} />
-                      AI旅程アドバイス
-                    </h3>
-                  </div>
-
-                  {analyzeItinerary.isPending && (
-                    <div
-                      className="rounded-xl p-6 flex items-center gap-3"
-                      style={{ background: "#EFF6EE", border: "1px solid #2D5A27" }}
-                    >
-                      <Loader2 size={20} className="animate-spin" style={{ color: "#2D5A27" }} />
-                      <p className="text-sm" style={{ color: "#2D5A27" }}>
-                        AIが旅程を分析しています。しばらくお待ちください...
-                      </p>
-                    </div>
-                  )}
-
-                  {analyzeItinerary.isError && (
-                    <div
-                      className="rounded-xl p-4 text-sm"
-                      style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#DC2626" }}
-                    >
-                      AI分析中にエラーが発生しました。しばらく後にお試しください。
-                    </div>
-                  )}
-
-                  {aiAnalysis && (
-                    <div
-                      className="rounded-2xl overflow-hidden"
-                      style={{
-                        border: "2px solid #2D5A27",
-                        background: "#EFF6EE",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-                      }}
-                    >
-                      <div
-                        className="px-5 py-3 flex items-center gap-3"
-                        style={{ background: "#2D5A27" }}
-                      >
-                        <BrainCircuit size={18} style={{ color: "white" }} />
-                        <span
-                          className="text-base font-bold"
-                          style={{ fontFamily: "'Playfair Display', serif", color: "white" }}
-                        >
-                          ChatGPT による旅程アドバイス
-                        </span>
-                      </div>
-                      <div
-                        className="p-5 prose prose-sm max-w-none"
-                        style={{
-                          "--tw-prose-body": "#3D2B1F",
-                          "--tw-prose-headings": "#2D5A27",
-                          "--tw-prose-links": "#2D5A27",
-                          "--tw-prose-bold": "#3D2B1F",
-                          "--tw-prose-th-borders": "#E8D5A3",
-                          "--tw-prose-td-borders": "#E8D5A3",
-                        } as React.CSSProperties}
-                      >
-                        <Streamdown>{aiAnalysis}</Streamdown>
-                      </div>
-                    </div>
-                  )}
-                </div>
               )}
             </div>
           ) : (
