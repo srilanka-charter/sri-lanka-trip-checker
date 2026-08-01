@@ -1,14 +1,15 @@
 /**
  * SpotSelector Component
- * Multi-select spot picker with badge display
+ * Free-text input for spots (must-visit / nice-to-visit)
+ * Accepts any text; normalizeLocation maps known sightseeing names to nearby hubs
  * Design: Tropical Cartography
  */
 
 import { useState } from "react";
 import { X, Plus } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { LOCATIONS } from "@/lib/locations";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface SpotSelectorProps {
   selected: string[];
@@ -21,20 +22,27 @@ interface SpotSelectorProps {
 export default function SpotSelector({
   selected,
   onChange,
-  exclude,
+  exclude: _exclude,
   color,
   placeholder,
 }: SpotSelectorProps) {
-  const [selectKey, setSelectKey] = useState(0);
+  const [inputValue, setInputValue] = useState("");
 
-  const available = LOCATIONS.filter(
-    (loc) => !selected.includes(loc.label) && !exclude.includes(loc.label)
-  );
+  const handleAdd = () => {
+    const trimmed = inputValue.trim();
+    if (!trimmed) return;
+    if (selected.includes(trimmed)) {
+      setInputValue("");
+      return;
+    }
+    onChange([...selected, trimmed]);
+    setInputValue("");
+  };
 
-  const handleAdd = (label: string) => {
-    if (!selected.includes(label)) {
-      onChange([...selected, label]);
-      setSelectKey(k => k + 1);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAdd();
     }
   };
 
@@ -49,7 +57,7 @@ export default function SpotSelector({
         <div className="flex flex-wrap gap-1.5">
           {selected.map((spot, i) => (
             <Badge
-              key={spot}
+              key={spot + i}
               className="text-xs py-1 px-2 flex items-center gap-1 cursor-default"
               style={{
                 background: `${color}18`,
@@ -58,7 +66,7 @@ export default function SpotSelector({
               }}
             >
               <span className="font-medium text-xs opacity-60 mr-0.5">{i + 1}</span>
-              {spot.split("(")[0].trim()}
+              {spot}
               <button
                 onClick={() => handleRemove(spot)}
                 className="ml-0.5 hover:opacity-70 transition-opacity"
@@ -70,36 +78,38 @@ export default function SpotSelector({
         </div>
       )}
 
-      {/* Add spot selector */}
-      {available.length > 0 && (
-        <Select key={selectKey} onValueChange={handleAdd}>
-          <SelectTrigger
-            className="w-full h-9 text-sm"
-            style={{
-              borderColor: `${color}40`,
-              background: `${color}08`,
-              color: "#8B6B4A",
-            }}
-          >
-            <div className="flex items-center gap-1.5">
-              <Plus size={13} style={{ color }} />
-              <span>{placeholder}</span>
-            </div>
-          </SelectTrigger>
-          <SelectContent>
-            {available.map((loc) => (
-              <SelectItem key={loc.id} value={loc.label}>
-                {loc.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-
-      {selected.length === 0 && available.length === 0 && (
-        <p className="text-xs" style={{ color: "#A8896B" }}>追加できるスポットがありません</p>
-      )}
+      {/* Free-text input row */}
+      <div className="flex gap-2">
+        <Input
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          className="h-9 text-sm flex-1"
+          style={{
+            borderColor: `${color}40`,
+            background: `${color}08`,
+            color: "#3D2B1F",
+          }}
+        />
+        <Button
+          type="button"
+          size="sm"
+          onClick={handleAdd}
+          disabled={!inputValue.trim()}
+          className="h-9 px-3 shrink-0"
+          style={{
+            background: inputValue.trim() ? color : `${color}40`,
+            color: "white",
+            border: "none",
+          }}
+        >
+          <Plus size={14} />
+        </Button>
+      </div>
+      <p className="text-xs" style={{ color: "#A8896B" }}>
+        例：シーギリヤロック、キャンディ仏歯寺、アンブルワワタワー など
+      </p>
     </div>
   );
 }
-

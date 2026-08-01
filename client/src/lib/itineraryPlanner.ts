@@ -53,6 +53,33 @@ export interface AlternativePlan {
   markdownTable: string;
 }
 
+// 修正⑤: 代替案生成ヘルパー（必須スポットを1つ削除）
+function generateAlt_removeMust(
+  input: TripInput,
+  altTitle: string,
+  removedMust: string[],
+  adjustmentNote: string,
+  merit: string,
+  caution: string
+): AlternativePlan {
+  const altInput: TripInput = {
+    ...input,
+    mustVisit: input.mustVisit.filter(v => !removedMust.includes(normalizeLocation(v))),
+    _isAlternative: true,
+  };
+  const result = planItinerary(altInput);
+  return {
+    title: altTitle,
+    adjustment: adjustmentNote,
+    merit,
+    caution,
+    days: result.days,
+    totalDistance: result.totalDistance,
+    planType: result.planType,
+    markdownTable: result.markdownTable,
+  };
+}
+
 // Base (拠点) = コロンボ
 const BASE = "コロンボ";
 
@@ -107,21 +134,37 @@ function buildRoute(
   const route: string[] = [normStart];
   const remaining = [...normMust];
 
-  // Greedy nearest-neighbor for must-visit
+  // 修正②: コロンボ/ネゴンボ/空港 → シーギリヤ＋キャンディ両方ある場合はシーギリヤを先に
+  const isFromBase = normStart === BASE;
+  const hasSigiriya = remaining.includes("シーギリヤ");
+  const hasKandy = remaining.includes("キャンディ");
+  if (isFromBase && hasSigiriya && hasKandy) {
+    // Force Sigiriya before Kandy: move Sigiriya to front of remaining
+    const sigIdx = remaining.indexOf("シーギリヤ");
+    remaining.splice(sigIdx, 1);
+    remaining.unshift("シーギリヤ");
+  }
+
+  // Greedy nearest-neighbor for must-visit (respecting forced order)
   let current = normStart;
   while (remaining.length > 0) {
-    let bestIdx = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const path = getShortestPath(current, remaining[i]);
-      if (path && path.distance < bestDist) {
-        bestDist = path.distance;
-        bestIdx = i;
+    // Check if we have a forced first stop (シーギリヤ when coming from base with Kandy)
+    let nextIdx = 0;
+    if (current === normStart && isFromBase && hasSigiriya && hasKandy && remaining[0] === "シーギリヤ") {
+      nextIdx = 0; // forced
+    } else {
+      let bestDist = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const path = getShortestPath(current, remaining[i]);
+        if (path && path.distance < bestDist) {
+          bestDist = path.distance;
+          nextIdx = i;
+        }
       }
     }
-    current = remaining[bestIdx];
+    current = remaining[nextIdx];
     route.push(current);
-    remaining.splice(bestIdx, 1);
+    remaining.splice(nextIdx, 1);
   }
 
   // Try to insert nice-to-visit stops
@@ -498,7 +541,7 @@ export function planItinerary(input: TripInput): ItineraryResult {
   if (judgment === "A") {
     judgmentMessage = "ご希望の行程をベースにご案内自体は可能です。ただし、一部の日で移動時間が長くなりやすく、観光時間やお身体への負担が出やすい内容です。そのため、より無理なく回りやすい代替案を2案あわせてご提案いたします。";
   } else if (judgment === "B") {
-    judgmentMessage = "ご希望の行程は移動範囲がかなり広く、このままの内容ではご案内が難しい状況です。安全面と観光時間を確保しやすくするため、行程を調整した代替案を2案ご提案いたします。";
+    judgmentMessage = ""; // B判定文は formatItineraryMarkdown 内で特別処理
   } else if (totalDistance > totalDays * 120) {
     judgmentMessage = "ご希望の行程をベースにご案内可能です。一方で、移動の流れを少し整えると、観光時間をより確保しやすくなります。参考として、より無理の少ない代替案もあわせてご提案いたします。";
   }
@@ -508,64 +551,81 @@ export function planItinerary(input: TripInput): ItineraryResult {
   // Generate alternatives if needed
   let alternatives: AlternativePlan[] | undefined;
   if (needsAlternatives && !isAlternative) {
-    if (niceToVisit.length > 0) {
-      const normNice = niceToVisit.map(normalizeLocation);
-      // Alt 1: Remove last nice-to-visit stop
-      const alt1 = generateAlternative(
+    // 修正⑤: 代替案ロジック
+    // 代替案1: 日程そのまま、必須スポットを1つ削る（最後の必須スポットを削除）
+    // 代替案2: 1日延長して、できる限り必須スポットを巡る（難しければ必須スポットを削る）
+    const normMust = mustVisit.map(normalizeLocation);
+
+    // Alt 1: 日程そのまま、必須スポットを1つ削る
+    let alt1: AlternativePlan;
+    if (normMust.length > 0) {
+      const removedMust = normMust[normMust.length - 1];
+      const remainingMust = normMust.slice(0, -1);
+      alt1 = generateAlt_removeMust(
         input,
         "代替案1",
-        [normNice[normNice.length - 1]],
-        `「${normNice[normNice.length - 1]}」を今回は省略し、移動を分散した行程`,
-        "1日あたりの移動負担が軽減され、各地での観光時間を確保しやすくなります。",
-        "ご希望のスポットを1か所省略する必要があります。"
+        [removedMust],
+        `「${removedMust}」を今回は省略し、日程はそのままで移動を分散した行程`,
+        "日程を変えずに1日あたりの移動負担を軽減できます。各スポットでの観光時間を確保しやすくなります。",
+        `「${removedMust}」への立ち寄りは今回は省略となります。${remainingMust.length > 0 ? `残りの必須スポット（${remainingMust.join("・")}）は全て含まれます。` : ""}`
       );
-      // Alt 2: Remove all nice-to-visit stops
-      const alt2 = generateAlternative(
+    } else {
+      // 必須スポットなし → できたら行きたい場所を全て省略
+      const normNice = niceToVisit.map(normalizeLocation);
+      alt1 = generateAlternative(
         input,
-        "代替案2",
+        "代替案1",
         normNice,
-        "「できたら行きたい場所」を全て省略し、必須スポットのみに絞った行程",
-        "移動距離が大幅に短縮され、各スポットでゆっくり過ごせます。",
+        "「できたら行きたい場所」を全て省略し、移動を最小限に抑えた行程",
+        "移動距離が大幅に短縮され、ゆっくり過ごせます。",
         "希望スポットへの立ち寄りはできなくなります。"
       );
-      alternatives = [alt1, alt2];
-    } else {
-      // No nice-to-visit to remove, suggest adding days
-      const extInput1: TripInput = {
-        ...input,
-        endDate: input.endDate ? addDays(input.endDate, 2) : null,
-        _isAlternative: true,
-      };
-      const extInput2: TripInput = {
+    }
+
+    // Alt 2: 1日延長して必須スポットを可能な限り巡る
+    const extInput2: TripInput = {
+      ...input,
+      endDate: input.endDate ? addDays(input.endDate, 1) : null,
+      niceToVisit: [], // できたら行きたい場所は削除（難しければ）
+      _isAlternative: true,
+    };
+    const alt2Result = planItinerary(extInput2);
+    // 1日延長でもB判定の場合は必須スポットを1つ削る
+    let alt2: AlternativePlan;
+    if (alt2Result.judgment === "B" && normMust.length > 1) {
+      const removedMust = normMust[normMust.length - 1];
+      const extInputReduced: TripInput = {
         ...input,
         endDate: input.endDate ? addDays(input.endDate, 1) : null,
+        mustVisit: input.mustVisit.filter(v => normalizeLocation(v) !== removedMust),
+        niceToVisit: [],
         _isAlternative: true,
       };
-      const alt1Result = planItinerary(extInput1);
-      const alt2Result = planItinerary(extInput2);
-      alternatives = [
-        {
-          title: "代替案1",
-          adjustment: "旅行日数を2日延長した行程",
-          merit: "1日あたりの移動距離が分散され、観光時間を確保しやすくなります。",
-          caution: "旅行日数の延長が必要です。",
-          days: alt1Result.days,
-          totalDistance: alt1Result.totalDistance,
-          planType: alt1Result.planType,
-          markdownTable: alt1Result.markdownTable,
-        },
-        {
-          title: "代替案2",
-          adjustment: "旅行日数を1日延長した行程",
-          merit: "長距離移動を分割でき、移動負担を軽減できます。",
-          caution: "旅行日数の延長が必要です。",
-          days: alt2Result.days,
-          totalDistance: alt2Result.totalDistance,
-          planType: alt2Result.planType,
-          markdownTable: alt2Result.markdownTable,
-        },
-      ];
+      const alt2ReducedResult = planItinerary(extInputReduced);
+      alt2 = {
+        title: "代替案2",
+        adjustment: `1日延長し「${removedMust}」を省略した行程`,
+        merit: "旅行日数を1日増やすことで移動が分散され、必須スポットをほぼ全て巡れます。",
+        caution: `旅行日数の延長と「${removedMust}」の省略が必要です。`,
+        days: alt2ReducedResult.days,
+        totalDistance: alt2ReducedResult.totalDistance,
+        planType: alt2ReducedResult.planType,
+        markdownTable: alt2ReducedResult.markdownTable,
+      };
+    } else {
+      alt2 = {
+        title: "代替案2",
+        adjustment: "1日延長し、必須スポットを全て巡る行程（できたら行きたい場所は省略）",
+        merit: "旅行日数を1日増やすことで移動が分散され、必須スポットを全て無理なく巡れます。",
+        caution: "旅行日数の延長が必要です。「できたら行きたい場所」は今回は省略となります。",
+        days: alt2Result.days,
+        totalDistance: alt2Result.totalDistance,
+        planType: alt2Result.planType,
+        markdownTable: alt2Result.markdownTable,
+      };
     }
+
+    alternatives = [alt1, alt2];
   }
 
   return {
@@ -587,35 +647,57 @@ export function planItinerary(input: TripInput): ItineraryResult {
  * Format itinerary as full markdown output
  */
 export function formatItineraryMarkdown(result: ItineraryResult, input: TripInput): string {
-  const { days, totalDistance, planType, judgment, judgmentMessage, specialNotes, markdownTable, alternatives } = result;
+  const { days, totalDistance, judgment, judgmentMessage, specialNotes, markdownTable, alternatives } = result;
 
   let md = "";
+
+  // 修正④: スリランカ悪路注意喚起（常に表示）
+  md += "> ⚠️ スリランカは悪路が多いです。長時間の移動が続くと移動疲れにより観光に支障をきたすおそれがあります。\n\n";
 
   // Special notes
   if (specialNotes.length > 0) {
     md += specialNotes.map(n => `> ⚠️ ${n}`).join("\n") + "\n\n";
   }
 
-  // Judgment message
-  if (judgmentMessage) {
-    md += `**【ご案内】** ${judgmentMessage}\n\n`;
-  }
-
   // Route overview
   const normStart = normalizeLocation(input.startPoint);
   const normEnd = normalizeLocation(input.endPoint);
-  const mustStr = input.mustVisit.map(normalizeLocation).join(" → ");
+  const mustStr = input.mustVisit.length > 0
+    ? input.mustVisit.map(v => {
+        const norm = normalizeLocation(v);
+        return norm !== v ? `${v}（${norm}）` : v;
+      }).join(" → ")
+    : "";
   md += `## 旅程概要\n\n`;
   md += `- **出発地：** ${normStart}\n`;
   md += `- **終着地：** ${normEnd}\n`;
   if (mustStr) md += `- **必須スポット：** ${mustStr}\n`;
-  if (input.niceToVisit.length > 0) md += `- **希望スポット：** ${input.niceToVisit.map(normalizeLocation).join("、")}\n`;
-  md += `- **プランタイプ：** ${planType}\n\n`;
+  if (input.niceToVisit.length > 0) {
+    const niceStr = input.niceToVisit.map(v => {
+      const norm = normalizeLocation(v);
+      return norm !== v ? `${v}（${norm}）` : v;
+    }).join("、");
+    md += `- **希望スポット：** ${niceStr}\n`;
+  }
+  md += "\n";
 
-  // Distance table (main plan)
-  md += "## 距離・時間表\n\n";
-  md += markdownTable;
-  md += "\n\n";
+  // 修正⑥: B判定の場合は特別な表示順序
+  if (judgment === "B") {
+    md += "**【ご案内】** ご希望の行程は移動範囲がかなり広く、このままの内容ではご案内が難しい状況です。\n\n";
+    md += "## 距離・時間表\n\n";
+    md += markdownTable;
+    md += "\n\n";
+    md += "走行距離が安全に運行できる上限を超過しています。また、このまま運行しても十分な観光な時間が取れず結果的にお客様の満足度が下がってしまいます。\n\n";
+    md += "安全面と観光時間を確保しやすくするため、行程を調整した代替案を2案ご提案いたします。\n\n";
+  } else {
+    // A判定・OK判定の通常表示
+    if (judgmentMessage) {
+      md += `**【ご案内】** ${judgmentMessage}\n\n`;
+    }
+    md += "## 距離・時間表\n\n";
+    md += markdownTable;
+    md += "\n\n";
+  }
 
   // Day-by-day details
   md += "## 1日ごとの旅程\n\n";
@@ -630,11 +712,10 @@ export function formatItineraryMarkdown(result: ItineraryResult, input: TripInpu
   if (alternatives && alternatives.length > 0) {
     md += "---\n\n";
     for (const alt of alternatives) {
-      md += `## 【${alt.title}】\n\n`;
+      md += `### 【${alt.title}】\n\n`;
       md += `**調整内容：** ${alt.adjustment}\n\n`;
       md += `**メリット：** ${alt.merit}\n\n`;
       md += `**注意点：** ${alt.caution}\n\n`;
-      md += `**プランタイプ：** ${alt.planType}\n\n`;
       md += alt.markdownTable;
       md += "\n\n";
     }
