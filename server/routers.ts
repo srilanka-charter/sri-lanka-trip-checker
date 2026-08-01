@@ -5,6 +5,40 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 import { invokeLLM } from "./_core/llm";
 
+// gpt-5はOPENAI_API_BASE経由でのみ動作する
+async function callGpt5(systemPrompt: string, userPrompt: string): Promise<string> {
+  const apiBase = (process.env.OPENAI_API_BASE ?? "https://api.manus.im/api/llm-proxy/v1").replace(/\/$/, "");
+  const apiKey = process.env.OPENAI_API_KEY ?? "";
+
+  const res = await fetch(`${apiBase}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-5",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: 8000,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`gpt-5 API error: ${res.status} ${errText.slice(0, 200)}`);
+  }
+
+  const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = data.choices?.[0]?.message?.content;
+  if (typeof content !== "string") {
+    throw new Error(`gpt-5 response missing content: ${JSON.stringify(data).slice(0, 300)}`);
+  }
+  return content;
+}
+
 // スリランカ距離データ（プロンプト用）
 const DISTANCE_DATA_FOR_PROMPT = `
 【スリランカ地点間の距離・所要時間データ】
@@ -169,25 +203,8 @@ judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規�
 - 必須スポット: ${mustVisitText}
 - 希望スポット: ${niceToVisitText}`;
 
-        const response = await invokeLLM({
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          model: "gpt-5",
-          max_completion_tokens: 3000,
-          reasoning: { effort: "medium" },
-          response_format: { type: "json_object" },
-        });
-
-        const content = response.choices[0]?.message?.content;
-        if (typeof content !== "string") {
-          const debugInfo = JSON.stringify({
-            choicesLength: response.choices?.length ?? 0,
-            firstChoice: response.choices?.[0] ?? null,
-          });
-          throw new Error(`AI旅程生成の応答が不正です: ${debugInfo}`);
-        }
+        const rawContent = await callGpt5(systemPrompt, userPrompt);
+        const content = rawContent;
 
         let parsed: {
           days: Array<{
@@ -208,7 +225,9 @@ judgmentは "OK"、"A"、"B" のいずれか。routeは地図描画用の正規�
         };
 
         try {
-          parsed = JSON.parse(content);
+          // マークダウンコードブロックを除去してからパース
+          const cleanContent = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+          parsed = JSON.parse(cleanContent);
         } catch {
           throw new Error("AI旅程生成のJSON解析に失敗しました");
         }
