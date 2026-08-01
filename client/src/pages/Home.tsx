@@ -22,6 +22,7 @@ type AlternativePlan = {
   merit: string;
   caution: string;
   markdownTable: string;
+  planName?: string;
 };
 import { LOCATIONS } from "@/lib/locations";
 
@@ -59,7 +60,11 @@ export default function Home() {
       merit: string;
       caution: string;
       markdownTable: string;
+      planName?: string;
     }>;
+    judgment?: string;
+    planName?: string;
+    judgmentMessage?: string;
   } | null>(null);
   const [routeLocations, setRouteLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,10 +77,17 @@ export default function Home() {
       setItineraryResult(data);
       setRouteLocations(data.route);
       // markdownTableを使って結果表示用テキストを構築
+      // 判定メッセージとプラン名
+      const judgmentSection = data.judgmentMessage
+        ? `\n\n${data.judgmentMessage}`
+        : "";
+      const planSection = data.planName && data.planName !== "-"
+        ? `\n\n**対象プラン：${data.planName}**`
+        : "";
       const specialNotesSection = data.specialNotes.length > 0
         ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
         : "";
-      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}`;
+      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}${planSection}${judgmentSection}`;
       setResult(markdown);
       setShowResult(true);
       setIsLoading(false);
