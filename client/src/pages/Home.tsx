@@ -16,10 +16,8 @@ import { trpc } from "@/lib/trpc";
 import TripMap from "@/components/TripMap";
 import DateRangePicker from "@/components/DateRangePicker";
 import SpotSelector from "@/components/SpotSelector";
-import { planItinerary, formatItineraryMarkdown, type TripInput } from "@/lib/itineraryPlanner";
-import type { ItineraryResult, AlternativePlan } from "@/lib/itineraryPlanner";
+import type { AlternativePlan } from "@/lib/itineraryPlanner";
 import { LOCATIONS } from "@/lib/locations";
-import { normalizeLocation } from "@/lib/distanceData";
 
 export default function Home() {
   // The useAuth hook provides authentication state.
@@ -34,7 +32,26 @@ export default function Home() {
   const [mustVisit, setMustVisit] = useState<string[]>([]);
   const [niceToVisit, setNiceToVisit] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
-  const [itineraryResult, setItineraryResult] = useState<ItineraryResult | null>(null);
+  const [itineraryResult, setItineraryResult] = useState<{
+    days: Array<{
+      date: string;
+      segments: string;
+      distance: number;
+      time: number;
+      notes: string[];
+      isPickup?: boolean;
+      isReturn?: boolean;
+      isStay?: boolean;
+    }>;
+    totalDistance: number;
+    totalDays: number;
+    judgment: "OK" | "A" | "B";
+    judgmentMessage: string;
+    specialNotes: string[];
+    route: string[];
+    markdownTable: string;
+    alternatives?: AlternativePlan[];
+  } | null>(null);
   const [routeLocations, setRouteLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -48,6 +65,36 @@ export default function Home() {
     },
     onError: (error) => {
       console.error("AI分析エラー:", error);
+    },
+  });
+
+  // ChatGPT旅程生成
+  const generateItinerary = trpc.ai.generateItinerary.useMutation({
+    onSuccess: (data) => {
+      setItineraryResult(data);
+      setRouteLocations(data.route);
+      // markdownTableを使って結果表示用テキストを構築
+      const judgmentLabel =
+        data.judgment === "OK" ? "✅ 問題なし（OK判定）" :
+        data.judgment === "A" ? "⚠️ 一部移動が長め（A判定）" :
+        "❌ 移動範囲超過（B判定）";
+      const specialNotesSection = data.specialNotes.length > 0
+        ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
+        : "";
+      const markdown = `## 旅程表\n\n${data.markdownTable}\n\n**判定: ${judgmentLabel}**\n${data.judgmentMessage}${specialNotesSection}`;
+      setResult(markdown);
+      setShowResult(true);
+      setIsLoading(false);
+      setTimeout(() => {
+        const el = document.getElementById("result-area");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    },
+    onError: (error) => {
+      console.error("旅程生成エラー:", error);
+      setResult("旅程の生成中にエラーが発生しました。しばらく後にお試しください。");
+      setShowResult(true);
+      setIsLoading(false);
     },
   });
 
@@ -80,39 +127,22 @@ export default function Home() {
     }
     setErrors([]);
     setIsLoading(true);
+    setAiAnalysis(null);
 
-    setTimeout(() => {
-      try {
-        const input: TripInput = {
-          startDate,
-          endDate,
-          startPoint,
-          endPoint,
-          mustVisit,
-          niceToVisit,
-        };
-        const itinerary = planItinerary(input);
-        const markdown = formatItineraryMarkdown(itinerary, input);
-        setResult(markdown);
-        setItineraryResult(itinerary);
+    // 日数計算
+    const diff = startDate && endDate
+      ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
+      : 1;
 
-        // Use the computed route directly from itinerary planner
-        setRouteLocations(itinerary.route);
-        setShowResult(true);
-
-        // Scroll to map/result area on mobile
-        setTimeout(() => {
-          const el = document.getElementById("result-area");
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-        }, 100);
-      } catch (e) {
-        console.error(e);
-        setResult("旅程の計算中にエラーが発生しました。入力内容を確認してください。");
-        setShowResult(true);
-      } finally {
-        setIsLoading(false);
-      }
-    }, 300);
+    generateItinerary.mutate({
+      startPoint,
+      endPoint,
+      startDate: startDate ? `${startDate.getMonth() + 1}/${startDate.getDate()}` : null,
+      endDate: endDate ? `${endDate.getMonth() + 1}/${endDate.getDate()}` : null,
+      numDays: diff,
+      mustVisit,
+      niceToVisit,
+    });
   }, [startPoint, endPoint, startDate, endDate, mustVisit, niceToVisit]);
 
   const handleReset = () => {
@@ -289,10 +319,10 @@ export default function Home() {
                   boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
                 }}
                 onClick={handleGenerate}
-                disabled={isLoading}
+                disabled={isLoading || generateItinerary.isPending}
               >
-                {isLoading ? (
-                  <><Loader2 size={18} className="animate-spin mr-2" />計算中...</>
+                {isLoading || generateItinerary.isPending ? (
+                  <><Loader2 size={18} className="animate-spin mr-2" />ChatGPTが考え中...</>
                 ) : (
                   <>旅程を生成する</>
                 )}
