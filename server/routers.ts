@@ -176,7 +176,7 @@ isPickupは迎車日（コロンボ→出発地の前日移動）、isReturnは�
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: "gpt-4o",
+          model: "gpt-5",
           max_tokens: 3000,
           response_format: { type: "json_object" },
         });
