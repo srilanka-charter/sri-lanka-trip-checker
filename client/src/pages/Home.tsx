@@ -307,7 +307,7 @@ export default function Home() {
                 disabled={isLoading || generateItinerary.isPending}
               >
                 {isLoading || generateItinerary.isPending ? (
-                  <><Loader2 size={18} className="animate-spin mr-2" />ChatGPTが考え中...</>
+                  <><Loader2 size={18} className="animate-spin mr-2" />回答を作成中...</>
                 ) : (
                   <>旅程を生成する</>
                 )}
