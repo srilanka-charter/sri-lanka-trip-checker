@@ -1,0 +1,23 @@
+# Project TODO
+
+- [x] Basic homepage layout with tropical cartography design
+- [x] Calendar date range picker (start/end date)
+- [x] Location dropdowns for start/end points (12 Sri Lanka locations)
+- [x] Must-visit and nice-to-visit spot selectors (free text input)
+- [x] Google Maps integration with route polyline drawing
+- [x] Day-by-day itinerary calculation with distance/time data
+- [x] Pickup/return transfer rules (迎車・回送)
+- [x] Special cases: first-day, last-day, long-hours exceptions
+- [x] A/B judgment system with distance limits
+- [x] Alternative plans generation (3 alternatives: 2 same-day, 1 extended)
+- [x] Markdown table output with totals
+- [x] Warning about Sri Lanka road conditions
+- [x] Route optimization (Sigiriya before Kandy from Colombo)
+- [x] Plan type display removed
+- [x] Alternative plan cards with color coding (3 colors)
+- [x] B-judgment special display format
+- [x] H3 display for alternative plans
+- [x] Balanced day distribution in itinerary
+- [x] Upgrade to fullstack (web-db-user) with tRPC + DB
+- [x] AI旅程分析機能（ChatGPT連携）: バックエンドtRPCエンドポイント実装
+- [x] AI旅程分析機能: フロントエンドUI（「AIで旅程を分析する」ボタン + 結果表示カード）
