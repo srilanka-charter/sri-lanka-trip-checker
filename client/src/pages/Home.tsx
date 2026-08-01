@@ -15,6 +15,7 @@ import TripMap from "@/components/TripMap";
 import DateRangePicker from "@/components/DateRangePicker";
 import SpotSelector from "@/components/SpotSelector";
 import { planItinerary, formatItineraryMarkdown, type TripInput } from "@/lib/itineraryPlanner";
+import type { ItineraryResult, AlternativePlan } from "@/lib/itineraryPlanner";
 import { LOCATIONS } from "@/lib/locations";
 import { normalizeLocation } from "@/lib/distanceData";
 
@@ -26,6 +27,7 @@ export default function Home() {
   const [mustVisit, setMustVisit] = useState<string[]>([]);
   const [niceToVisit, setNiceToVisit] = useState<string[]>([]);
   const [result, setResult] = useState<string | null>(null);
+  const [itineraryResult, setItineraryResult] = useState<ItineraryResult | null>(null);
   const [routeLocations, setRouteLocations] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -56,6 +58,7 @@ export default function Home() {
         const itinerary = planItinerary(input);
         const markdown = formatItineraryMarkdown(itinerary, input);
         setResult(markdown);
+        setItineraryResult(itinerary);
 
         // Use the computed route directly from itinerary planner
         setRouteLocations(itinerary.route);
@@ -87,6 +90,7 @@ export default function Home() {
     setRouteLocations([]);
     setShowResult(false);
     setErrors([]);
+    setItineraryResult(null);
   };
 
   return (
@@ -334,6 +338,11 @@ export default function Home() {
               >
                 <Streamdown>{result}</Streamdown>
               </div>
+
+              {/* Alternative Plans - rendered as rich cards */}
+              {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
+                <AlternativePlansSection alternatives={itineraryResult.alternatives} />
+              )}
             </div>
           ) : (
             /* Placeholder when no result */
@@ -428,5 +437,120 @@ function LocationSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+// ===== Alternative Plans Section =====
+
+function AlternativePlansSection({ alternatives }: { alternatives: AlternativePlan[] }) {
+  return (
+    <div className="mt-8">
+      <div
+        className="flex items-center gap-2 mb-5 pb-3"
+        style={{ borderBottom: "2px solid #E8D5A3" }}
+      >
+        <div className="w-1 h-6 rounded-full" style={{ background: "#2D5A27" }} />
+        <h3
+          className="text-xl font-bold"
+          style={{ fontFamily: "'Playfair Display', serif", color: "#2D5A27" }}
+        >
+          代替案のご提案
+        </h3>
+      </div>
+      <div className="space-y-6">
+        {alternatives.map((alt, idx) => (
+          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AlternativePlanCard({ alt, index }: { alt: AlternativePlan; index: number }) {
+  const colors = [
+    { bg: "#EFF6EE", border: "#2D5A27", accent: "#2D5A27", badge: "#D4EDD0" },
+    { bg: "#FFF8F0", border: "#C4622D", accent: "#C4622D", badge: "#FFE8D4" },
+  ];
+  const c = colors[(index - 1) % 2];
+
+  return (
+    <div
+      className="rounded-2xl overflow-hidden"
+      style={{
+        border: `2px solid ${c.border}`,
+        background: c.bg,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+      }}
+    >
+      {/* Card Header */}
+      <div
+        className="px-5 py-3 flex items-center gap-3"
+        style={{ background: c.border }}
+      >
+        <div
+          className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold"
+          style={{ background: "rgba(255,255,255,0.25)", color: "white" }}
+        >
+          {index}
+        </div>
+        <h4
+          className="text-base font-bold"
+          style={{ fontFamily: "'Playfair Display', serif", color: "white" }}
+        >
+          代替案 {index}
+        </h4>
+      </div>
+
+      {/* Card Body */}
+      <div className="p-5 space-y-4">
+        {/* Adjustment / Merit / Caution */}
+        <div className="grid gap-3 sm:grid-cols-3">
+          <InfoChip label="調整内容" text={alt.adjustment} color={c.accent} bgColor={c.badge} />
+          <InfoChip label="メリット" text={alt.merit} color="#1A6B1A" bgColor="#D4EDD0" />
+          <InfoChip label="注意点" text={alt.caution} color="#8B4513" bgColor="#FFE8D4" />
+        </div>
+
+        {/* Distance Table */}
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{ border: "1px solid #E8D5A3" }}
+        >
+          <div
+            className="px-4 py-2 text-xs font-semibold"
+            style={{ background: "#E8D5A3", color: "#3D2B1F" }}
+          >
+            距離・時間表
+          </div>
+          <div
+            className="p-4 prose prose-sm max-w-none"
+            style={{
+              background: "white",
+              "--tw-prose-body": "#3D2B1F",
+              "--tw-prose-headings": c.accent,
+              "--tw-prose-th-borders": "#E8D5A3",
+              "--tw-prose-td-borders": "#E8D5A3",
+            } as React.CSSProperties}
+          >
+            <Streamdown>{alt.markdownTable}</Streamdown>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoChip({ label, text, color, bgColor }: { label: string; text: string; color: string; bgColor: string }) {
+  return (
+    <div
+      className="rounded-lg p-3"
+      style={{ background: bgColor, border: `1px solid ${color}22` }}
+    >
+      <p className="text-xs font-bold mb-1" style={{ color }}>
+        {label}
+      </p>
+      <p className="text-xs leading-relaxed" style={{ color: "#3D2B1F" }}>
+        {text}
+      </p>
+    </div>
   );
 }

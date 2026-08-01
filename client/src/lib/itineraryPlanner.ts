@@ -699,27 +699,18 @@ export function formatItineraryMarkdown(result: ItineraryResult, input: TripInpu
     md += "\n\n";
   }
 
-  // Day-by-day details
-  md += "## 1日ごとの旅程\n\n";
-  for (const day of days) {
-    md += `### ${day.date}　${day.segments}\n\n`;
-    const distStr = day.isStay ? "約30〜50km" : `${day.distance}km`;
-    const timeStr = day.isStay ? "約1〜2時間" : formatTime(day.time);
-    md += `走行距離：${distStr}　走行時間：${timeStr}\n\n`;
-  }
-
-  // Alternatives
-  if (alternatives && alternatives.length > 0) {
-    md += "---\n\n";
-    for (const alt of alternatives) {
-      md += `### 【${alt.title}】\n\n`;
-      md += `**調整内容：** ${alt.adjustment}\n\n`;
-      md += `**メリット：** ${alt.merit}\n\n`;
-      md += `**注意点：** ${alt.caution}\n\n`;
-      md += alt.markdownTable;
-      md += "\n\n";
+  // B判定の場合は1日ごとの旅程を表示しない（運行が難しいため不要）
+  if (judgment !== "B") {
+    md += "## 1日ごとの旅程\n\n";
+    for (const day of days) {
+      md += `### ${day.date}　${day.segments}\n\n`;
+      const distStr = day.isStay ? "約30〜50km" : `${day.distance}km`;
+      const timeStr = day.isStay ? "約1〜2時間" : formatTime(day.time);
+      md += `走行距離：${distStr}　走行時間：${timeStr}\n\n`;
     }
   }
+
+  // Note: Alternatives are rendered as React cards in Home.tsx, not in markdown
 
   return md;
 }
