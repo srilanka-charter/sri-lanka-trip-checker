@@ -282,18 +282,24 @@ function buildDayItineraries(
   if (numDays >= legs.length) {
     // 1 leg per day, distribute remaining stay days proportionally
     const stayDaysTotal = numDays - legs.length;
-    const stayPerLeg = Math.floor(stayDaysTotal / legs.length);
-    let extraStay = stayDaysTotal % legs.length;
+    // 最後の区間は終着地への移動なので、その後に滞在日を入れない
+    // 滞在日は最後の区間を除いた区間に均等配分
+    const movingLegs = legs.length; // total moving legs
+    const stayableLegs = Math.max(1, movingLegs - 1); // legs that can have stay days after them (exclude last)
+    const stayPerLeg = Math.floor(stayDaysTotal / stayableLegs);
+    let extraStay = stayDaysTotal % stayableLegs;
 
     for (let li = 0; li < legs.length; li++) {
       // Travel day for this leg
       dayLegs.push([legs[li]]);
-      // Stay days at destination
-      const stayCount = stayPerLeg + (extraStay > 0 ? 1 : 0);
-      if (extraStay > 0) extraStay--;
-      const dest = legs[li].to;
-      for (let s = 0; s < stayCount; s++) {
-        dayLegs.push([{ from: dest, to: dest, distance: 40, time: 1.5 }]);
+      // Stay days at destination (only for non-last legs)
+      if (li < legs.length - 1) {
+        const stayCount = stayPerLeg + (extraStay > 0 ? 1 : 0);
+        if (extraStay > 0) extraStay--;
+        const dest = legs[li].to;
+        for (let s = 0; s < stayCount; s++) {
+          dayLegs.push([{ from: dest, to: dest, distance: 40, time: 1.5 }]);
+        }
       }
     }
   } else {
@@ -551,9 +557,10 @@ export function planItinerary(input: TripInput): ItineraryResult {
   // Generate alternatives if needed
   let alternatives: AlternativePlan[] | undefined;
   if (needsAlternatives && !isAlternative) {
-    // 修正⑤: 代替案ロジック
+    // 代替案ロジック（3案）
     // 代替案1: 日程そのまま、必須スポットを1つ削る（最後の必須スポットを削除）
-    // 代替案2: 1日延長して、できる限り必須スポットを巡る（難しければ必須スポットを削る）
+    // 代替案2: 日程そのまま、別の必須スポットを削る（2番目に最後の必須スポットを削除）
+    // 代替案3: 1日延長して、できる限り必須スポットを巡る（難しければ必須スポットを削る）
     const normMust = mustVisit.map(normalizeLocation);
 
     // Alt 1: 日程そのまま、必須スポットを1つ削る
@@ -582,50 +589,76 @@ export function planItinerary(input: TripInput): ItineraryResult {
       );
     }
 
-    // Alt 2: 1日延長して必須スポットを可能な限り巡る
-    const extInput2: TripInput = {
+    // Alt 2: 日程そのまま、別の必須スポットを削る（2番目に最後の必須スポット）
+    let alt2: AlternativePlan;
+    if (normMust.length > 1) {
+      const removedMust2 = normMust[normMust.length - 2];
+      const remainingMust2 = normMust.filter((_, i) => i !== normMust.length - 2);
+      alt2 = generateAlt_removeMust(
+        input,
+        "代替案2",
+        [removedMust2],
+        `「${removedMust2}」を今回は省略し、日程はそのままで移動を分散した行程`,
+        "日程を変えずに1日あたりの移動負担を軽減できます。別のスポット構成で観光時間を確保しやすくなります。",
+        `「${removedMust2}」への立ち寄りは今回は省略となります。${remainingMust2.length > 0 ? `残りの必須スポット（${remainingMust2.join("・")}）は全て含まれます。` : ""}`
+      );
+    } else {
+      // 必須スポットが1つ以下 → できたら行きたい場所を全て省略
+      const normNice = niceToVisit.map(normalizeLocation);
+      alt2 = generateAlternative(
+        input,
+        "代替案2",
+        normNice,
+        "「できたら行きたい場所」を全て省略し、移動を最小限に抑えた行程",
+        "移動距離が大幅に短縮され、ゆっくり過ごせます。",
+        "希望スポットへの立ち寄りはできなくなります。"
+      );
+    }
+
+    // Alt 3: 1日延長して必須スポットを可能な限り巡る
+    const extInput3: TripInput = {
       ...input,
       endDate: input.endDate ? addDays(input.endDate, 1) : null,
       niceToVisit: [], // できたら行きたい場所は削除（難しければ）
       _isAlternative: true,
     };
-    const alt2Result = planItinerary(extInput2);
+    const alt3Result = planItinerary(extInput3);
     // 1日延長でもB判定の場合は必須スポットを1つ削る
-    let alt2: AlternativePlan;
-    if (alt2Result.judgment === "B" && normMust.length > 1) {
+    let alt3: AlternativePlan;
+    if (alt3Result.judgment === "B" && normMust.length > 1) {
       const removedMust = normMust[normMust.length - 1];
-      const extInputReduced: TripInput = {
+      const extInput3Reduced: TripInput = {
         ...input,
         endDate: input.endDate ? addDays(input.endDate, 1) : null,
         mustVisit: input.mustVisit.filter(v => normalizeLocation(v) !== removedMust),
         niceToVisit: [],
         _isAlternative: true,
       };
-      const alt2ReducedResult = planItinerary(extInputReduced);
-      alt2 = {
-        title: "代替案2",
+      const alt3ReducedResult = planItinerary(extInput3Reduced);
+      alt3 = {
+        title: "代替案3",
         adjustment: `1日延長し「${removedMust}」を省略した行程`,
         merit: "旅行日数を1日増やすことで移動が分散され、必須スポットをほぼ全て巡れます。",
         caution: `旅行日数の延長と「${removedMust}」の省略が必要です。`,
-        days: alt2ReducedResult.days,
-        totalDistance: alt2ReducedResult.totalDistance,
-        planType: alt2ReducedResult.planType,
-        markdownTable: alt2ReducedResult.markdownTable,
+        days: alt3ReducedResult.days,
+        totalDistance: alt3ReducedResult.totalDistance,
+        planType: alt3ReducedResult.planType,
+        markdownTable: alt3ReducedResult.markdownTable,
       };
     } else {
-      alt2 = {
-        title: "代替案2",
+      alt3 = {
+        title: "代替案3",
         adjustment: "1日延長し、必須スポットを全て巡る行程（できたら行きたい場所は省略）",
         merit: "旅行日数を1日増やすことで移動が分散され、必須スポットを全て無理なく巡れます。",
         caution: "旅行日数の延長が必要です。「できたら行きたい場所」は今回は省略となります。",
-        days: alt2Result.days,
-        totalDistance: alt2Result.totalDistance,
-        planType: alt2Result.planType,
-        markdownTable: alt2Result.markdownTable,
+        days: alt3Result.days,
+        totalDistance: alt3Result.totalDistance,
+        planType: alt3Result.planType,
+        markdownTable: alt3Result.markdownTable,
       };
     }
 
-    alternatives = [alt1, alt2];
+    alternatives = [alt1, alt2, alt3];
   }
 
   return {
@@ -688,7 +721,7 @@ export function formatItineraryMarkdown(result: ItineraryResult, input: TripInpu
     md += markdownTable;
     md += "\n\n";
     md += "走行距離が安全に運行できる上限を超過しています。また、このまま運行しても十分な観光な時間が取れず結果的にお客様の満足度が下がってしまいます。\n\n";
-    md += "安全面と観光時間を確保しやすくするため、行程を調整した代替案を2案ご提案いたします。\n\n";
+    md += "安全面と観光時間を確保しやすくするため、行程を調整した代替案を3案ご提案いたします。\n\n";
   } else {
     // A判定・OK判定の通常表示
     if (judgmentMessage) {

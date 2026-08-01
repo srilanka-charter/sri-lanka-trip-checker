@@ -467,11 +467,12 @@ function AlternativePlansSection({ alternatives }: { alternatives: AlternativePl
 }
 
 function AlternativePlanCard({ alt, index }: { alt: AlternativePlan; index: number }) {
-  const colors = [
+  const allColors = [
     { bg: "#EFF6EE", border: "#2D5A27", accent: "#2D5A27", badge: "#D4EDD0" },
     { bg: "#FFF8F0", border: "#C4622D", accent: "#C4622D", badge: "#FFE8D4" },
+    { bg: "#EFF4FF", border: "#2D4FA3", accent: "#2D4FA3", badge: "#D0DCFF" },
   ];
-  const c = colors[(index - 1) % 2];
+  const c = allColors[(index - 1) % 3];
 
   return (
     <div
