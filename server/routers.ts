@@ -122,7 +122,7 @@ export const appRouter = router({
         const niceToVisitText = niceToVisit.length > 0 ? niceToVisit.join("、") : "なし";
         const dateRangeText = startDate && endDate ? `${startDate}〜${endDate}（${numDays}日間）` : `${numDays}日間`;
 
-        const systemPrompt = `あなたはスリランカ専門のドライバーガイド会社のシステムです。
+        const systemPrompt = `あなたはスリランカ専門のドライバーガイド会社のシステムです。必ずjson形式で返答してください。
 以下のルールに厳密に従い、日本語で旅程を生成してください。
 
 【ルール】
