@@ -10,9 +10,11 @@ import { MAP_MARKERS } from "@/lib/locations";
 
 interface TripMapProps {
   routeLocations: string[]; // canonical location names
+  warningMode?: boolean;    // B判定時：地図上に警告を表示
+  compact?: boolean;        // 代替案カード内で小さく表示
 }
 
-export default function TripMap({ routeLocations }: TripMapProps) {
+export default function TripMap({ routeLocations, warningMode = false, compact = false }: TripMapProps) {
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
@@ -123,16 +125,17 @@ export default function TripMap({ routeLocations }: TripMapProps) {
     }
   }, [routeLocations, mapReady]);
 
+  const minH = compact ? "240px" : "400px";
   return (
-    <div className="w-full relative" style={{ height: "100%", minHeight: "400px" }}>
+    <div className="w-full relative" style={{ height: "100%", minHeight: minH }}>
       <MapView
         onMapReady={handleMapReady}
         initialCenter={{ lat: 7.8731, lng: 80.7718 }}
         initialZoom={7}
         className="w-full"
-        style={{ height: "100%", minHeight: "400px" }}
+        style={{ height: "100%", minHeight: minH }}
       />
-      {routeLocations.length === 0 && (
+      {routeLocations.length === 0 && !warningMode && (
         <div
           className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium pointer-events-none whitespace-nowrap"
           style={{
@@ -143,6 +146,25 @@ export default function TripMap({ routeLocations }: TripMapProps) {
           }}
         >
           旅程を入力するとルートが表示されます
+        </div>
+      )}
+      {warningMode && (
+        <div
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+          style={{ background: "rgba(255,255,255,0.55)" }}
+        >
+          <div
+            className="px-5 py-3 rounded-xl text-center font-semibold text-sm leading-relaxed"
+            style={{
+              background: "rgba(255,255,255,0.95)",
+              border: "2px solid #DC2626",
+              color: "#DC2626",
+              boxShadow: "0 4px 16px rgba(220,38,38,0.15)",
+              maxWidth: "320px",
+            }}
+          >
+            体力上・安全上運行が難しいです。<br />代替案をご確認ください。
+          </div>
         </div>
       )}
     </div>

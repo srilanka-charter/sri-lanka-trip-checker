@@ -5,8 +5,8 @@
  * Layout: Left form panel (sticky) + Right column (map → result scrollable)
  */
 
-import { useState, useCallback } from "react";
-import { MapPin, Calendar, Navigation, Star, Loader2 } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { MapPin, Calendar, Navigation, Star, Loader2, Copy, Check, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,6 +23,7 @@ type AlternativePlan = {
   caution: string;
   markdownTable: string;
   planName?: string;
+  route?: string[];
 };
 import { LOCATIONS, MAP_MARKERS } from "@/lib/locations";
 import { normalizeLocation } from "@/lib/distanceData";
@@ -71,11 +72,14 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
+  const markdownTableRef = useRef<string>("");
 
   // ChatGPT旅程生成
   const generateItinerary = trpc.ai.generateItinerary.useMutation({
     onSuccess: (data) => {
       setItineraryResult(data);
+      markdownTableRef.current = data.markdownTable;
       // routeの各地名をMAP_MARKERSのキーに正規化し、未知の地名はスキップ
       const normalizedRoute = data.route
         .map((loc: string) => normalizeLocation(loc))
@@ -158,7 +162,31 @@ export default function Home() {
     setShowResult(false);
     setErrors([]);
     setItineraryResult(null);
+    setCopied(false);
+    markdownTableRef.current = "";
   };
+
+  const handleCopyItinerary = useCallback(async () => {
+    const text = markdownTableRef.current;
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // fallback
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
+  }, []);
+
+  const isJudgmentB = itineraryResult?.judgment === "B";
 
   return (
     <div className="min-h-screen" style={{ background: "#FAF7F0", fontFamily: "'Noto Sans JP', sans-serif" }}>
@@ -355,7 +383,7 @@ export default function Home() {
               borderBottom: "2px solid #E8D5A3",
             }}
           >
-            <TripMap routeLocations={routeLocations} />
+            <TripMap routeLocations={routeLocations} warningMode={isJudgmentB && showResult} />
           </div>
 
           {/* Result Area - below map */}
@@ -409,7 +437,27 @@ export default function Home() {
 
               {/* Alternative Plans - rendered as rich cards */}
               {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
-                <AlternativePlansSection alternatives={itineraryResult.alternatives} />
+                <AlternativePlansSection
+                  alternatives={itineraryResult.alternatives}
+                  startPoint={startPoint}
+                  endPoint={endPoint}
+                />
+              )}
+
+              {/* コピー＆問い合わせボタン（B判定以外：元プランの下） */}
+              {!isJudgmentB && (
+                <ContactSection
+                  onCopy={handleCopyItinerary}
+                  copied={copied}
+                />
+              )}
+
+              {/* コピー＆問い合わせボタン（B判定：代替案の下） */}
+              {isJudgmentB && itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
+                <ContactSection
+                  onCopy={handleCopyItinerary}
+                  copied={copied}
+                />
               )}
             </div>
           ) : (
@@ -510,7 +558,15 @@ function LocationSelect({
 
 // ===== Alternative Plans Section =====
 
-function AlternativePlansSection({ alternatives }: { alternatives: AlternativePlan[] }) {
+function AlternativePlansSection({
+  alternatives,
+  startPoint,
+  endPoint,
+}: {
+  alternatives: AlternativePlan[];
+  startPoint: string;
+  endPoint: string;
+}) {
   return (
     <div className="mt-8">
       <div
@@ -527,14 +583,37 @@ function AlternativePlansSection({ alternatives }: { alternatives: AlternativePl
       </div>
       <div className="space-y-6">
         {alternatives.map((alt, idx) => (
-          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} />
+          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} startPoint={startPoint} endPoint={endPoint} />
         ))}
       </div>
     </div>
   );
 }
 
-function AlternativePlanCard({ alt, index }: { alt: AlternativePlan; index: number }) {
+function AlternativePlanCard({
+  alt,
+  index,
+  startPoint,
+  endPoint,
+}: {
+  alt: AlternativePlan;
+  index: number;
+  startPoint: string;
+  endPoint: string;
+}) {
+  // 代替案のrouteを正規化して地図用に構築
+  const altRoute = (() => {
+    const base: string[] = (alt.route ?? [])
+      .map((loc: string) => normalizeLocation(loc))
+      .filter((loc: string) => loc in MAP_MARKERS);
+    const normStart = normalizeLocation(startPoint);
+    const normEnd = normalizeLocation(endPoint);
+    const r = [...base];
+    if (normStart in MAP_MARKERS && (r.length === 0 || r[0] !== normStart)) r.unshift(normStart);
+    if (normEnd in MAP_MARKERS && (r.length === 0 || r[r.length - 1] !== normEnd)) r.push(normEnd);
+    return r;
+  })();
+
   const allColors = [
     { bg: "#EFF6EE", border: "#2D5A27", accent: "#2D5A27", badge: "#D4EDD0" },
     { bg: "#FFF8F0", border: "#C4622D", accent: "#C4622D", badge: "#FFE8D4" },
@@ -579,6 +658,14 @@ function AlternativePlanCard({ alt, index }: { alt: AlternativePlan; index: numb
           <InfoChip label="注意点" text={alt.caution} color="#8B4513" bgColor="#FFE8D4" />
         </div>
 
+        {/* 代替案の地図 */}
+        <div
+          className="rounded-xl overflow-hidden"
+          style={{ border: "1px solid #E8D5A3", height: "280px" }}
+        >
+          <TripMap routeLocations={altRoute} compact />
+        </div>
+
         {/* Distance Table */}
         <div
           className="rounded-xl overflow-hidden"
@@ -619,6 +706,68 @@ function InfoChip({ label, text, color, bgColor }: { label: string; text: string
       </p>
       <p className="text-xs leading-relaxed" style={{ color: "#3D2B1F" }}>
         {text}
+      </p>
+    </div>
+  );
+}
+
+// ===== Contact Section =====
+
+function ContactSection({
+  onCopy,
+  copied,
+}: {
+  onCopy: () => void;
+  copied: boolean;
+}) {
+  return (
+    <div
+      className="mt-8 rounded-2xl p-6 space-y-4"
+      style={{
+        background: "white",
+        border: "1px solid #E8D5A3",
+        boxShadow: "0 2px 8px rgba(196,98,45,0.08)",
+      }}
+    >
+      <div className="flex flex-col sm:flex-row gap-3">
+        {/* コピーボタン */}
+        <button
+          onClick={onCopy}
+          className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
+          style={{
+            background: copied ? "#2D5A27" : "#FAF7F0",
+            border: `2px solid ${copied ? "#2D5A27" : "#C4622D"}`,
+            color: copied ? "white" : "#C4622D",
+          }}
+        >
+          {copied ? (
+            <><Check size={16} />コピーしました</>
+          ) : (
+            <><Copy size={16} />この旅程をコピー</>
+          )}
+        </button>
+        {/* 問い合わせボタン */}
+        <button
+          onClick={() => {
+            // TODO: 問い合わせ遷移先を設定
+          }}
+          className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
+          style={{
+            background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+            border: "none",
+            color: "white",
+            boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+          }}
+        >
+          <MessageCircle size={16} />
+          この旅程をコピーして問い合わせへ
+        </button>
+      </div>
+      <p
+        className="text-xs leading-relaxed"
+        style={{ color: "#8B6B4A" }}
+      >
+        ※この結果は不完全な場合もあります。詳細と金額についてはお問い合わせ後にご案内させていただきます。
       </p>
     </div>
   );

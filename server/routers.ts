@@ -234,7 +234,8 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
       "merit": "この代替案のメリット",
       "caution": "注意点",
       "planName": "近郊プレミアム",
-      "markdownTable": "| 日付 | 主な区間（迎車・回送含む） | 距離 | 走行時間の目安 |\n| --- | --- | ---: | --- |\n| 7/15 | コロンボ → キャンディ | 120km | 約3時間 |\n\n総走行距離の目安：400km前後\n\n※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。"
+      "markdownTable": "| 日付 | 主な区間（迎車・回送含む） | 距離 | 走行時間の目安 |\n| --- | --- | ---: | --- |\n| 7/15 | コロンボ → キャンディ | 120km | 約3時間 |\n\n総走行距離の目安：400km前後\n\n※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。",
+      "route": ["コロンボ", "キャンディ", "コロンボ"]
     }
   ]
 }
@@ -246,7 +247,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
 - planNameは「近郊プレミアム」「広域グランド」のいずれか（B判定の原案は「-」）
 - judgmentMessageは判定に応じた説明文（A判定文・B判定文・原案成立＋改善提案文・または空文字）
 - markdownTableは原案の4列距離表（総走行距離・注釈含む）
-- alternativesはA/B判定時のみ生成（最大2つ）、問題がない場合は空配列
+- alternativesはA/B判定時のみ生成（最大2つ）、問題がない場合は空配列。各alternativeには必ずrouteフィールドを含めること（地図描画用の正規地名リスト、出発地→経由地→終着地の順）
 - 上記のキー以外は絶対に追加しないこと`;
 
         const userPrompt = `以下の条件で旅程を生成してください。
@@ -274,12 +275,13 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           totalDistance: number;
           specialNotes: string[];
           route: string[];
-          alternatives: Array<{
-            adjustment: string;
-            merit: string;
-            caution: string;
-            markdownTable: string;
-          }>;
+        alternatives: Array<{
+          adjustment: string;
+          merit: string;
+          caution: string;
+          markdownTable: string;
+          route?: string[];
+        }>;
           judgment?: string;
           planName?: string;
           judgmentMessage?: string;
