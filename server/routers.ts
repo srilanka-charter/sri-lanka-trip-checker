@@ -1,39 +1,25 @@
 import { z } from "zod";
+import OpenAI from "openai";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 
-// gpt-5はBUILT_IN_FORGE_API_URL経由で動作する（api.manus.imは外部トークン不可）
-async function callGpt5(systemPrompt: string, userPrompt: string): Promise<string> {
-  const apiBase = (process.env.BUILT_IN_FORGE_API_URL ?? "https://forge.manus.ai").replace(/\/$/, "");
-  const apiKey = process.env.BUILT_IN_FORGE_API_KEY ?? "";
+// OpenAI gpt-4o を使用する
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const res = await fetch(`${apiBase}/v1/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-5",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      max_tokens: 16000,
-    }),
+async function callGpt4o(systemPrompt: string, userPrompt: string): Promise<string> {
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    max_tokens: 16000,
   });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`gpt-5 API error: ${res.status} ${errText.slice(0, 200)}`);
-  }
-
-  const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const content = data.choices?.[0]?.message?.content;
+  const content = response.choices[0]?.message?.content;
   if (typeof content !== "string") {
-    throw new Error(`gpt-5 response missing content: ${JSON.stringify(data).slice(0, 300)}`);
+    throw new Error(`gpt-4o response missing content: ${JSON.stringify(response).slice(0, 300)}`);
   }
   return content;
 }
@@ -258,7 +244,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
 - 必須スポット: ${mustVisitText}
 - 希望スポット: ${niceToVisitText}`;
 
-        const rawContent = await callGpt5(systemPrompt, userPrompt);
+        const rawContent = await callGpt4o(systemPrompt, userPrompt);
         const content = rawContent;
 
         let parsed: {
