@@ -24,7 +24,8 @@ type AlternativePlan = {
   markdownTable: string;
   planName?: string;
 };
-import { LOCATIONS } from "@/lib/locations";
+import { LOCATIONS, MAP_MARKERS } from "@/lib/locations";
+import { normalizeLocation } from "@/lib/distanceData";
 
 export default function Home() {
   // The useAuth hook provides authentication state.
@@ -75,7 +76,21 @@ export default function Home() {
   const generateItinerary = trpc.ai.generateItinerary.useMutation({
     onSuccess: (data) => {
       setItineraryResult(data);
-      setRouteLocations(data.route);
+      // routeの各地名をMAP_MARKERSのキーに正規化し、未知の地名はスキップ
+      const normalizedRoute = data.route
+        .map((loc: string) => normalizeLocation(loc))
+        .filter((loc: string) => loc in MAP_MARKERS);
+      // 出発地・終着地が含まれていない場合は先頭・末尾に補完
+      const normStart = normalizeLocation(startPoint);
+      const normEnd = normalizeLocation(endPoint);
+      const routeWithEnds = [...normalizedRoute];
+      if (normStart in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[0] !== normStart)) {
+        routeWithEnds.unshift(normStart);
+      }
+      if (normEnd in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[routeWithEnds.length - 1] !== normEnd)) {
+        routeWithEnds.push(normEnd);
+      }
+      setRouteLocations(routeWithEnds);
       // markdownTableを使って結果表示用テキストを構築
       // 判定メッセージとプラン名
       const judgmentSection = data.judgmentMessage
