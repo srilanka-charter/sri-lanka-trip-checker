@@ -118,7 +118,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-family: 'Noto Sans JP', sans-serif;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),

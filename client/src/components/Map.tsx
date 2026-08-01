@@ -76,7 +76,7 @@
 
 /// <reference types="@types/google.maps" />
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePersistFn } from "@/hooks/usePersistFn";
 import { cn } from "@/lib/utils";
 
@@ -92,21 +92,43 @@ const FORGE_BASE_URL =
   "https://forge.butterfly-effect.dev";
 const MAPS_PROXY_URL = `${FORGE_BASE_URL}/v1/maps/proxy`;
 
-function loadMapScript() {
-  return new Promise(resolve => {
-    const script = document.createElement("script");
-    script.src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
-    script.async = true;
-    script.crossOrigin = "anonymous";
-    script.onload = () => {
-      resolve(null);
-      script.remove(); // Clean up immediately
-    };
-    script.onerror = () => {
-      console.error("Failed to load Google Maps script");
-    };
-    document.head.appendChild(script);
+let mapScriptPromise: Promise<void> | null = null;
+
+function loadMapScript(): Promise<void> {
+  if (mapScriptPromise) return mapScriptPromise;
+  mapScriptPromise = new Promise<void>((resolve, reject) => {
+    if (window.google?.maps) {
+      resolve();
+      return;
+    }
+    const src = `${MAPS_PROXY_URL}/maps/api/js?key=${API_KEY}&v=weekly&libraries=marker,places,geocoding,geometry`;
+    // Use fetch + Blob URL to bypass script-src CSP restrictions
+    fetch(src)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(code => {
+        const blob = new Blob([code], { type: 'application/javascript' });
+        const blobUrl = URL.createObjectURL(blob);
+        const script = document.createElement("script");
+        script.src = blobUrl;
+        script.onload = () => {
+          URL.revokeObjectURL(blobUrl);
+          resolve();
+        };
+        script.onerror = () => {
+          URL.revokeObjectURL(blobUrl);
+          reject(new Error('Failed to execute Maps script'));
+        };
+        document.head.appendChild(script);
+      })
+      .catch(e => {
+        console.error("Failed to fetch Google Maps script:", e.message);
+        reject(e);
+      });
   });
+  return mapScriptPromise;
 }
 
 interface MapViewProps {
@@ -114,6 +136,7 @@ interface MapViewProps {
   initialCenter?: google.maps.LatLngLiteral;
   initialZoom?: number;
   onMapReady?: (map: google.maps.Map) => void;
+  style?: React.CSSProperties;
 }
 
 export function MapView({
@@ -121,27 +144,39 @@ export function MapView({
   initialCenter = { lat: 37.7749, lng: -122.4194 },
   initialZoom = 12,
   onMapReady,
+  style,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const init = usePersistFn(async () => {
-    await loadMapScript();
-    if (!mapContainer.current) {
-      console.error("Map container not found");
+    try {
+      await loadMapScript();
+    } catch (e) {
+      console.error("Maps load error:", e);
+      setLoadError(true);
       return;
     }
-    map.current = new window.google.maps.Map(mapContainer.current, {
-      zoom: initialZoom,
-      center: initialCenter,
-      mapTypeControl: true,
-      fullscreenControl: true,
-      zoomControl: true,
-      streetViewControl: true,
-      mapId: "DEMO_MAP_ID",
-    });
-    if (onMapReady) {
-      onMapReady(map.current);
+    if (!mapContainer.current || !window.google?.maps) {
+      setLoadError(true);
+      return;
+    }
+    try {
+      map.current = new window.google.maps.Map(mapContainer.current, {
+        zoom: initialZoom,
+        center: initialCenter,
+        mapTypeControl: true,
+        fullscreenControl: true,
+        zoomControl: true,
+        streetViewControl: true,
+      });
+      if (onMapReady) {
+        onMapReady(map.current);
+      }
+    } catch (e) {
+      console.error("Map init error:", e);
+      setLoadError(true);
     }
   });
 
@@ -150,6 +185,13 @@ export function MapView({
   }, [init]);
 
   return (
-    <div ref={mapContainer} className={cn("w-full h-[500px]", className)} />
+    <div className={cn("w-full h-[500px] relative", className)} style={style}>
+      <div ref={mapContainer} className="w-full h-full" />
+      {loadError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-amber-50 text-amber-800 text-sm p-4 text-center">
+          地図の読み込みに失敗しました。<br />ページを再読み込みしてください。
+        </div>
+      )}
+    </div>
   );
 }

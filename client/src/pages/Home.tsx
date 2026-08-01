@@ -1,25 +1,432 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
-
 /**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
+ * Sri Lanka Trip Checker - Main Page
+ * Design: Tropical Cartography - warm vintage map aesthetic
+ * Colors: Terracotta #C4622D, Deep Green #2D5A27, Sand #E8D5A3, Cream #FAF7F0
+ * Layout: Left form panel (sticky) + Right column (map → result scrollable)
  */
+
+import { useState, useCallback } from "react";
+import { MapPin, Calendar, Navigation, Star, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Streamdown } from "streamdown";
+import TripMap from "@/components/TripMap";
+import DateRangePicker from "@/components/DateRangePicker";
+import SpotSelector from "@/components/SpotSelector";
+import { planItinerary, formatItineraryMarkdown, type TripInput } from "@/lib/itineraryPlanner";
+import { LOCATIONS } from "@/lib/locations";
+import { normalizeLocation } from "@/lib/distanceData";
+
 export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  const [startPoint, setStartPoint] = useState<string>("");
+  const [endPoint, setEndPoint] = useState<string>("");
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [mustVisit, setMustVisit] = useState<string[]>([]);
+  const [niceToVisit, setNiceToVisit] = useState<string[]>([]);
+  const [result, setResult] = useState<string | null>(null);
+  const [routeLocations, setRouteLocations] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [errors, setErrors] = useState<string[]>([]);
+
+  const handleGenerate = useCallback(() => {
+    const errs: string[] = [];
+    if (!startPoint) errs.push("出発地を選択してください");
+    if (!endPoint) errs.push("終着地を選択してください");
+    if (!startDate || !endDate) errs.push("旅行期間を選択してください");
+    if (errs.length > 0) {
+      setErrors(errs);
+      return;
+    }
+    setErrors([]);
+    setIsLoading(true);
+
+    setTimeout(() => {
+      try {
+        const input: TripInput = {
+          startDate,
+          endDate,
+          startPoint,
+          endPoint,
+          mustVisit,
+          niceToVisit,
+        };
+        const itinerary = planItinerary(input);
+        const markdown = formatItineraryMarkdown(itinerary, input);
+        setResult(markdown);
+
+        // Use the computed route directly from itinerary planner
+        setRouteLocations(itinerary.route);
+        setShowResult(true);
+
+        // Scroll to map/result area on mobile
+        setTimeout(() => {
+          const el = document.getElementById("result-area");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      } catch (e) {
+        console.error(e);
+        setResult("旅程の計算中にエラーが発生しました。入力内容を確認してください。");
+        setShowResult(true);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
+  }, [startPoint, endPoint, startDate, endDate, mustVisit, niceToVisit]);
+
+  const handleReset = () => {
+    setStartPoint("");
+    setEndPoint("");
+    setStartDate(null);
+    setEndDate(null);
+    setMustVisit([]);
+    setNiceToVisit([]);
+    setResult(null);
+    setRouteLocations([]);
+    setShowResult(false);
+    setErrors([]);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="min-h-screen" style={{ background: "#FAF7F0", fontFamily: "'Noto Sans JP', sans-serif" }}>
+      {/* Header */}
+      <header
+        className="sticky top-0 z-50 border-b"
+        style={{
+          background: "rgba(250,247,240,0.97)",
+          backdropFilter: "blur(12px)",
+          borderColor: "#E8D5A3",
+        }}
+      >
+        <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center gap-3">
+          <img
+            src="/manus-storage/sri-lanka-logo_f44c2263.png"
+            alt="Logo"
+            className="w-9 h-9 object-contain"
+          />
+          <div>
+            <h1
+              className="text-xl font-bold leading-tight"
+              style={{ fontFamily: "'Playfair Display', serif", color: "#C4622D" }}
+            >
+              スリランカ旅程提案チェッカー
+            </h1>
+            <p className="text-xs" style={{ color: "#8B6B4A" }}>
+              Sri Lanka Trip Planner
+            </p>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="text-xs hidden sm:flex"
+              style={{ borderColor: "#C4622D", color: "#C4622D" }}
+            >
+              距離データ準拠
+            </Badge>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Layout: Left form (sticky) + Right scrollable content */}
+      <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row">
+        {/* Left: Form Panel (sticky on desktop) */}
+        <div
+          className="lg:w-[420px] xl:w-[460px] flex-shrink-0"
+          style={{ borderRight: "1px solid #E8D5A3" }}
+        >
+          <div
+            className="lg:sticky lg:top-[60px] lg:max-h-[calc(100vh-60px)] lg:overflow-y-auto"
+          >
+            <div className="p-5 space-y-5">
+              {/* Hero text */}
+              <div
+                className="rounded-xl p-4 relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                  color: "white",
+                }}
+              >
+                <div className="relative z-10">
+                  <p className="text-xs font-medium opacity-80 mb-1">TRIP PLANNER</p>
+                  <h2
+                    className="text-lg font-bold leading-snug"
+                    style={{ fontFamily: "'Playfair Display', serif" }}
+                  >
+                    旅程を入力して<br />最適ルートを確認
+                  </h2>
+                  <p className="text-xs mt-2 opacity-75">
+                    地図上にルートを描画し、1日ごとの距離・時間を自動計算します
+                  </p>
+                </div>
+                <div
+                  className="absolute right-3 bottom-2 text-6xl opacity-10 font-bold"
+                  style={{ fontFamily: "'Playfair Display', serif" }}
+                >
+                  SL
+                </div>
+              </div>
+
+              {/* Date Range */}
+              <FormSection icon={<Calendar size={16} />} title="旅行期間">
+                <DateRangePicker
+                  startDate={startDate}
+                  endDate={endDate}
+                  onStartChange={setStartDate}
+                  onEndChange={setEndDate}
+                />
+              </FormSection>
+
+              {/* Start / End Points */}
+              <FormSection icon={<Navigation size={16} />} title="出発地・終着地">
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+                      出発地（Start Point）
+                    </label>
+                    <LocationSelect
+                      value={startPoint}
+                      onChange={setStartPoint}
+                      placeholder="出発地を選択"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+                      終着地（End Point）
+                    </label>
+                    <LocationSelect
+                      value={endPoint}
+                      onChange={setEndPoint}
+                      placeholder="終着地を選択"
+                    />
+                  </div>
+                </div>
+              </FormSection>
+
+              {/* Must Visit */}
+              <FormSection icon={<MapPin size={16} />} title="必須で行きたい場所">
+                <SpotSelector
+                  selected={mustVisit}
+                  onChange={setMustVisit}
+                  exclude={[startPoint, endPoint, ...niceToVisit]}
+                  color="#C4622D"
+                  placeholder="必須スポットを追加"
+                />
+              </FormSection>
+
+              {/* Nice to Visit */}
+              <FormSection icon={<Star size={16} />} title="できたら行きたい場所">
+                <SpotSelector
+                  selected={niceToVisit}
+                  onChange={setNiceToVisit}
+                  exclude={[startPoint, endPoint, ...mustVisit]}
+                  color="#2D5A27"
+                  placeholder="希望スポットを追加"
+                />
+              </FormSection>
+
+              {/* Errors */}
+              {errors.length > 0 && (
+                <div
+                  className="rounded-lg p-3 text-sm space-y-1"
+                  style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#DC2626" }}
+                >
+                  {errors.map((e, i) => (
+                    <p key={i}>• {e}</p>
+                  ))}
+                </div>
+              )}
+
+              {/* Generate Button */}
+              <Button
+                className="w-full h-12 text-base font-semibold transition-all duration-200 active:scale-[0.98]"
+                style={{
+                  background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                  color: "white",
+                  border: "none",
+                  boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+                }}
+                onClick={handleGenerate}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <><Loader2 size={18} className="animate-spin mr-2" />計算中...</>
+                ) : (
+                  <>旅程を生成する</>
+                )}
+              </Button>
+
+              {showResult && (
+                <Button
+                  variant="outline"
+                  className="w-full h-10 text-sm"
+                  style={{ borderColor: "#E8D5A3", color: "#8B6B4A" }}
+                  onClick={handleReset}
+                >
+                  リセット
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Map + Result (scrollable) */}
+        <div className="flex-1 flex flex-col" id="result-area">
+          {/* Map - fixed height */}
+          <div
+            style={{
+              height: "520px",
+              minHeight: "400px",
+              width: "100%",
+              position: "relative",
+              borderBottom: "2px solid #E8D5A3",
+            }}
+          >
+            <TripMap routeLocations={routeLocations} />
+          </div>
+
+          {/* Result Area - below map */}
+          {showResult && result ? (
+            <div
+              className="flex-1 p-6"
+              style={{ background: "#FAF7F0" }}
+            >
+              {/* Result Header */}
+              <div
+                className="flex items-center justify-between mb-5 pb-3"
+                style={{ borderBottom: "2px solid #E8D5A3" }}
+              >
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-1 h-6 rounded-full"
+                    style={{ background: "#C4622D" }}
+                  />
+                  <h3
+                    className="text-xl font-bold"
+                    style={{ fontFamily: "'Playfair Display', serif", color: "#C4622D" }}
+                  >
+                    旅程提案結果
+                  </h3>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleReset}
+                  style={{ color: "#8B6B4A", fontSize: "12px" }}
+                >
+                  リセット
+                </Button>
+              </div>
+
+              {/* Markdown Result */}
+              <div
+                className="prose prose-sm max-w-none"
+                style={{
+                  "--tw-prose-body": "#3D2B1F",
+                  "--tw-prose-headings": "#C4622D",
+                  "--tw-prose-links": "#C4622D",
+                  "--tw-prose-bold": "#3D2B1F",
+                  "--tw-prose-tables": "#3D2B1F",
+                  "--tw-prose-th-borders": "#E8D5A3",
+                  "--tw-prose-td-borders": "#E8D5A3",
+                } as React.CSSProperties}
+              >
+                <Streamdown>{result}</Streamdown>
+              </div>
+            </div>
+          ) : (
+            /* Placeholder when no result */
+            <div
+              className="flex-1 flex flex-col items-center justify-center p-10 text-center"
+              style={{ minHeight: "300px" }}
+            >
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
+                style={{ background: "#F0E8D8" }}
+              >
+                <MapPin size={28} style={{ color: "#C4622D" }} />
+              </div>
+              <p
+                className="text-base font-medium mb-2"
+                style={{ color: "#8B6B4A", fontFamily: "'Playfair Display', serif" }}
+              >
+                旅程を入力して生成してください
+              </p>
+              <p className="text-sm" style={{ color: "#A8896B" }}>
+                左のフォームに旅行期間・出発地・終着地を入力し、<br />
+                「旅程を生成する」ボタンを押すと地図上にルートが描画されます
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
+  );
+}
+
+// ===== Sub-components =====
+
+function FormSection({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-xl p-4"
+      style={{
+        background: "white",
+        border: "1px solid #E8D5A3",
+        boxShadow: "0 1px 4px rgba(196,98,45,0.06)",
+      }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <span style={{ color: "#C4622D" }}>{icon}</span>
+        <h3 className="text-sm font-semibold" style={{ color: "#3D2B1F" }}>
+          {title}
+        </h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function LocationSelect({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        className="w-full h-10 text-sm"
+        style={{
+          borderColor: "#E8D5A3",
+          background: "#FAF7F0",
+          color: value ? "#3D2B1F" : "#A8896B",
+        }}
+      >
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {LOCATIONS.map((loc) => (
+          <SelectItem key={loc.id} value={loc.label}>
+            <span className="flex items-center gap-2">
+              <MapPin size={12} style={{ color: "#C4622D" }} />
+              {loc.label}
+            </span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
