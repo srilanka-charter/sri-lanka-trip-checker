@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef } from "react";
-import { MapPin, Calendar, Navigation, Star, Loader2, Copy, Check, MessageCircle } from "lucide-react";
+import { MapPin, Calendar, Navigation, Star, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -632,27 +632,6 @@ function AlternativePlanCard({
   startPoint: string;
   endPoint: string;
 }) {
-  const [altCopied, setAltCopied] = useState(false);
-
-  const handleAltCopy = useCallback(async () => {
-    const text = alt.markdownTable;
-    if (!text) return;
-    try {
-      await navigator.clipboard.writeText(text);
-      setAltCopied(true);
-      setTimeout(() => setAltCopied(false), 2500);
-    } catch {
-      const el = document.createElement("textarea");
-      el.value = text;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      setAltCopied(true);
-      setTimeout(() => setAltCopied(false), 2500);
-    }
-  }, [alt.markdownTable]);
-
   // 代替案のrouteを正規化して地図用に構築
   const altRoute = (() => {
     const base: string[] = (alt.route ?? [])
@@ -744,7 +723,7 @@ function AlternativePlanCard({
         </div>
 
         {/* 代替案ごとのコピー＆問い合わせボタン */}
-        <ContactSection onCopy={handleAltCopy} copied={altCopied} />
+        <ContactSection />
       </div>
     </div>
   );
@@ -768,13 +747,7 @@ function InfoChip({ label, text, color, bgColor }: { label: string; text: string
 
 // ===== Contact Section =====
 
-function ContactSection({
-  onCopy,
-  copied,
-}: {
-  onCopy: () => void;
-  copied: boolean;
-}) {
+function ContactSection() {
   return (
     <div
       className="mt-8 rounded-2xl p-6 space-y-4"
@@ -784,40 +757,21 @@ function ContactSection({
         boxShadow: "0 2px 8px rgba(196,98,45,0.08)",
       }}
     >
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* コピーボタン */}
-        <button
-          onClick={onCopy}
-          className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
-          style={{
-            background: copied ? "#2D5A27" : "#FAF7F0",
-            border: `2px solid ${copied ? "#2D5A27" : "#C4622D"}`,
-            color: copied ? "white" : "#C4622D",
-          }}
-        >
-          {copied ? (
-            <><Check size={16} />コピーしました</>
-          ) : (
-            <><Copy size={16} />この旅程をコピー</>
-          )}
-        </button>
-        {/* 問い合わせボタン */}
-        <button
-          onClick={() => {
-            // TODO: 問い合わせ遷移先を設定
-          }}
-          className="flex-1 flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
-          style={{
-            background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
-            border: "none",
-            color: "white",
-            boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
-          }}
-        >
-          <MessageCircle size={16} />
-          この旅程をコピーして問い合わせへ
-        </button>
-      </div>
+      <button
+        onClick={() => {
+          // TODO: 問い合わせ遷移先を設定
+        }}
+        className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
+        style={{
+          background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+          border: "none",
+          color: "white",
+          boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+        }}
+      >
+        <MessageCircle size={16} />
+        この旅程で金額を問い合わせる
+      </button>
       <p
         className="text-xs leading-relaxed"
         style={{ color: "#8B6B4A" }}
