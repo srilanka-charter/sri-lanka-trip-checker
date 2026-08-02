@@ -1,27 +1,27 @@
 import { z } from "zod";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
 
-// OpenAI gpt-4o を使用する
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Anthropic Claude Opus 4 を使用する
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-async function callGpt4o(systemPrompt: string, userPrompt: string): Promise<string> {
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o",
+async function callClaudeOpus4(systemPrompt: string, userPrompt: string): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: "claude-opus-4-5",
+    max_tokens: 16000,
+    system: systemPrompt,
     messages: [
-      { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    max_tokens: 16000,
   });
-  const content = response.choices[0]?.message?.content;
-  if (typeof content !== "string") {
-    throw new Error(`gpt-4o response missing content: ${JSON.stringify(response).slice(0, 300)}`);
+  const block = response.content[0];
+  if (!block || block.type !== "text") {
+    throw new Error(`Claude Opus 4 response missing text: ${JSON.stringify(response).slice(0, 300)}`);
   }
-  return content;
+  return block.text;
 }
 
 // スリランカ距離データ（プロンプト用）
@@ -244,7 +244,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
 - 必須スポット: ${mustVisitText}
 - 希望スポット: ${niceToVisitText}`;
 
-        const rawContent = await callGpt4o(systemPrompt, userPrompt);
+        const rawContent = await callClaudeOpus4(systemPrompt, userPrompt);
         const content = rawContent;
 
         let parsed: {
