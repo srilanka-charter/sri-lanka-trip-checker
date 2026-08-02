@@ -1,15 +1,43 @@
 /**
- * SpotSelector Component
- * Free-text input for spots (must-visit / nice-to-visit)
- * Accepts any text; normalizeLocation maps known sightseeing names to nearby hubs
+ * SpotSelector Component - Redesigned
+ * - 初期2行のプルダウン表示
+ * - 「追加する＋」ボタンで行を追加
+ * - 固定プルダウン選択肢（スリランカ主要スポット）
+ * - 「その他」選択時はテキスト入力欄を表示
  * Design: Tropical Cartography
  */
 
 import { useState } from "react";
 import { X, Plus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const SPOT_OPTIONS = [
+  "シーギリヤ・ロック",
+  "ダンブッラ石窟寺院",
+  "キャンディ（仏歯寺）",
+  "ヌワラエリヤ",
+  "エラ",
+  "ヤーラ国立公園",
+  "ゴール・フォート（ゴール旧市街）",
+  "ミリッサ",
+  "ポロンナルワ遺跡",
+  "アヌラーダプラ遺跡",
+  "その他",
+];
+
+interface SpotRow {
+  id: number;
+  selected: string; // "" = 未選択, "その他" = フリーテキスト, それ以外 = 確定値
+  customText: string; // "その他" 選択時のフリーテキスト
+}
 
 interface SpotSelectorProps {
   selected: string[];
@@ -19,97 +47,159 @@ interface SpotSelectorProps {
   placeholder: string;
 }
 
+let nextId = 1;
+
+function makeRow(): SpotRow {
+  return { id: nextId++, selected: "", customText: "" };
+}
+
 export default function SpotSelector({
   selected,
   onChange,
-  exclude: _exclude,
+  exclude,
   color,
-  placeholder,
 }: SpotSelectorProps) {
-  const [inputValue, setInputValue] = useState("");
+  const [rows, setRows] = useState<SpotRow[]>([makeRow(), makeRow()]);
 
-  const handleAdd = () => {
-    const trimmed = inputValue.trim();
-    if (!trimmed) return;
-    if (selected.includes(trimmed)) {
-      setInputValue("");
-      return;
-    }
-    onChange([...selected, trimmed]);
-    setInputValue("");
+  // rowsからselectedを再計算してonChangeを呼ぶ
+  const syncToParent = (newRows: SpotRow[]) => {
+    const values = newRows
+      .map((r) => {
+        if (r.selected === "その他") return r.customText.trim();
+        return r.selected;
+      })
+      .filter((v) => v !== "");
+    // 重複除去
+    const unique = values.filter((v, i) => values.indexOf(v) === i);
+    onChange(unique);
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAdd();
-    }
+  const handleSelectChange = (rowId: number, value: string) => {
+    const newRows = rows.map((r) =>
+      r.id === rowId ? { ...r, selected: value, customText: "" } : r
+    );
+    setRows(newRows);
+    syncToParent(newRows);
   };
 
-  const handleRemove = (label: string) => {
-    onChange(selected.filter((s) => s !== label));
+  const handleCustomTextChange = (rowId: number, text: string) => {
+    const newRows = rows.map((r) =>
+      r.id === rowId ? { ...r, customText: text } : r
+    );
+    setRows(newRows);
+    syncToParent(newRows);
+  };
+
+  const handleRemoveRow = (rowId: number) => {
+    const newRows = rows.filter((r) => r.id !== rowId);
+    setRows(newRows);
+    syncToParent(newRows);
+  };
+
+  const handleAddRow = () => {
+    setRows((prev) => [...prev, makeRow()]);
+  };
+
+  // 既に選択済みの値（その行以外）とexcludeを合わせた除外リスト
+  const getExcluded = (rowId: number) => {
+    const otherSelected = rows
+      .filter((r) => r.id !== rowId && r.selected !== "" && r.selected !== "その他")
+      .map((r) => r.selected);
+    return [...exclude, ...otherSelected];
   };
 
   return (
     <div className="space-y-2">
-      {/* Selected badges */}
-      {selected.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {selected.map((spot, i) => (
-            <Badge
-              key={spot + i}
-              className="text-xs py-1 px-2 flex items-center gap-1 cursor-default"
-              style={{
-                background: `${color}18`,
-                color: color,
-                border: `1px solid ${color}40`,
-              }}
-            >
-              <span className="font-medium text-xs opacity-60 mr-0.5">{i + 1}</span>
-              {spot}
-              <button
-                onClick={() => handleRemove(spot)}
-                className="ml-0.5 hover:opacity-70 transition-opacity"
-              >
-                <X size={11} />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
+      {rows.map((row, idx) => {
+        const excluded = getExcluded(row.id);
+        const availableOptions = SPOT_OPTIONS.filter(
+          (opt) => opt === "その他" || !excluded.includes(opt)
+        );
 
-      {/* Free-text input row */}
-      <div className="flex gap-2">
-        <Input
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          className="h-9 text-sm flex-1"
-          style={{
-            borderColor: `${color}40`,
-            background: `${color}08`,
-            color: "#3D2B1F",
-          }}
-        />
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleAdd}
-          disabled={!inputValue.trim()}
-          className="h-9 px-3 shrink-0"
-          style={{
-            background: inputValue.trim() ? color : `${color}40`,
-            color: "white",
-            border: "none",
-          }}
-        >
-          <Plus size={14} />
-        </Button>
-      </div>
-      <p className="text-xs" style={{ color: "#A8896B" }}>
-        例：シーギリヤロック、キャンディ仏歯寺、アンブルワワタワー など
-      </p>
+        return (
+          <div key={row.id} className="space-y-1.5">
+            <div className="flex gap-2 items-center">
+              {/* 番号 */}
+              <span
+                className="text-xs font-bold w-5 text-center shrink-0"
+                style={{ color }}
+              >
+                {idx + 1}
+              </span>
+
+              {/* プルダウン */}
+              <Select
+                value={row.selected}
+                onValueChange={(v) => handleSelectChange(row.id, v)}
+              >
+                <SelectTrigger
+                  className="flex-1 h-9 text-sm"
+                  style={{
+                    borderColor: `${color}40`,
+                    background: `${color}08`,
+                    color: row.selected ? "#3D2B1F" : "#A8896B",
+                  }}
+                >
+                  <SelectValue placeholder="スポットを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOptions.map((opt) => (
+                    <SelectItem key={opt} value={opt}>
+                      {opt}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* 削除ボタン（2行以上のとき表示） */}
+              {rows.length > 2 && (
+                <button
+                  onClick={() => handleRemoveRow(row.id)}
+                  className="shrink-0 hover:opacity-70 transition-opacity"
+                  style={{ color: "#A8896B" }}
+                  aria-label="削除"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {/* その他テキスト入力 */}
+            {row.selected === "その他" && (
+              <div className="ml-7">
+                <Input
+                  value={row.customText}
+                  onChange={(e) => handleCustomTextChange(row.id, e.target.value)}
+                  placeholder="スポット名を入力してください"
+                  className="h-9 text-sm"
+                  style={{
+                    borderColor: `${color}40`,
+                    background: `${color}08`,
+                    color: "#3D2B1F",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* 追加ボタン */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={handleAddRow}
+        className="h-8 text-xs px-3 mt-1"
+        style={{
+          borderColor: `${color}50`,
+          color: color,
+          background: "transparent",
+        }}
+      >
+        <Plus size={12} className="mr-1" />
+        追加する
+      </Button>
     </div>
   );
 }

@@ -310,9 +310,9 @@ export default function Home() {
                  onChange={setMustVisit}
                  exclude={[startPoint, endPoint, ...niceToVisit]}
                  color="#C4622D"
-                 placeholder="必須スポットを追加"
+                 placeholder=""
                />
-                <p className="text-xs mt-2 leading-relaxed" style={{ color: "#8B6B4A" }}>
+                <p className="text-xs mt-3 leading-relaxed" style={{ color: "#8B6B4A" }}>
                   紅茶列車に乗車したい場合、現在の運行区間のヌワラエリヤ、エッラを選択してください。問い合わせ後に乗車区間や予約法についてご案内申し上げます。
                 </p>
               </FormSection>
@@ -324,7 +324,7 @@ export default function Home() {
                   onChange={setNiceToVisit}
                   exclude={[startPoint, endPoint, ...mustVisit]}
                   color="#2D5A27"
-                  placeholder="希望スポットを追加"
+                  placeholder=""
                 />
               </FormSection>
 
