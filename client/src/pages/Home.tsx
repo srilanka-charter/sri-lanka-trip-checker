@@ -468,7 +468,7 @@ export default function Home() {
               )}
 
               {/* judgmentMessage（代替案提案の説明文）を代替案の前に表示 */}
-              {itineraryResult?.judgmentMessage && (
+              {isJudgmentB && itineraryResult?.judgmentMessage && (
                 <div
                   className="mt-6 p-4 rounded-xl text-sm leading-relaxed"
                   style={{
@@ -482,7 +482,7 @@ export default function Home() {
               )}
 
               {/* Alternative Plans - rendered as rich cards */}
-              {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
+              {isJudgmentB && itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
                 <AlternativePlansSection
                   alternatives={itineraryResult.alternatives}
                   startPoint={startPoint}
