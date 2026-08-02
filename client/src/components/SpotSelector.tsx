@@ -152,17 +152,15 @@ export default function SpotSelector({
                 </SelectContent>
               </Select>
 
-              {/* 削除ボタン（2行以上のとき表示） */}
-              {rows.length > 2 && (
-                <button
-                  onClick={() => handleRemoveRow(row.id)}
-                  className="shrink-0 hover:opacity-70 transition-opacity"
-                  style={{ color: "#A8896B" }}
-                  aria-label="削除"
-                >
-                  <X size={14} />
-                </button>
-              )}
+              {/* 削除ボタン（常時表示） */}
+              <button
+                onClick={() => handleRemoveRow(row.id)}
+                className="shrink-0 hover:opacity-70 transition-opacity"
+                style={{ color: "#A8896B" }}
+                aria-label="削除"
+              >
+                <X size={14} />
+              </button>
             </div>
 
             {/* その他テキスト入力 */}
