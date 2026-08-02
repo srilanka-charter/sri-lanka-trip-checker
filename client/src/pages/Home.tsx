@@ -100,13 +100,10 @@ export default function Home() {
       const judgmentSection = data.judgmentMessage
         ? `\n\n${data.judgmentMessage}`
         : "";
-      const planSection = data.planName && data.planName !== "-"
-        ? `\n\n**対象プラン：${data.planName}**`
-        : "";
       const specialNotesSection = data.specialNotes.length > 0
         ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
         : "";
-      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}${planSection}${judgmentSection}`;
+      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}`;
       setResult(markdown);
       setShowResult(true);
       setIsLoading(false);
@@ -435,8 +432,54 @@ export default function Home() {
                   "--tw-prose-td-borders": "#E8D5A3",
                 } as React.CSSProperties}
               >
-                <Streamdown>{result}</Streamdown>
+              <Streamdown>{result}</Streamdown>
               </div>
+
+              {/* 旅程表直下：問い合わせボタン＋注意書き（遂行可能時） */}
+              {!isJudgmentB && (
+                <div
+                  className="mt-6 rounded-2xl p-6 space-y-4"
+                  style={{
+                    background: "white",
+                    border: "1px solid #E8D5A3",
+                    boxShadow: "0 2px 8px rgba(196,98,45,0.08)",
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      handleCopyItinerary();
+                      // TODO: 問い合わせ遷移先を設定
+                    }}
+                    className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
+                    style={{
+                      background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                      border: "none",
+                      color: "white",
+                      boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+                    }}
+                  >
+                    <MessageCircle size={16} />
+                    この旅程で金額を問い合わせる
+                  </button>
+                  <p className="text-xs leading-relaxed" style={{ color: "#8B6B4A" }}>
+                    ※あくまで自動で算出される簡易的なモデルコースです。お問い合わせいただいた際に他にご要望があればお伝えください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
+                  </p>
+                </div>
+              )}
+
+              {/* judgmentMessage（代替案提案の説明文）を代替案の前に表示 */}
+              {itineraryResult?.judgmentMessage && (
+                <div
+                  className="mt-6 p-4 rounded-xl text-sm leading-relaxed"
+                  style={{
+                    background: "#FFF8F0",
+                    border: "1px solid #E8D5A3",
+                    color: "#3D2B1F",
+                  }}
+                >
+                  {itineraryResult.judgmentMessage}
+                </div>
+              )}
 
               {/* Alternative Plans - rendered as rich cards */}
               {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
@@ -779,7 +822,7 @@ function ContactSection({
         className="text-xs leading-relaxed"
         style={{ color: "#8B6B4A" }}
       >
-        ※この結果は不完全な場合もあります。詳細と金額についてはお問い合わせ後にご案内させていただきます。
+        ※この結果は不完全な場合もあります。追加でご要望等があればお問い合わせ時に追記してください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
       </p>
     </div>
   );
