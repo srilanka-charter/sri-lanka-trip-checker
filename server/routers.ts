@@ -381,17 +381,38 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
               });
             }
           }
-          if (infeasibleAltDetails.length === 0) break; // 全代替案が遂行可能 → ループ終了
-          const altDetails = infeasibleAltDetails.map(info =>
-            `代替案${info.index + 1}に遂行不可能な日（距離300km超かつ時間6時間超）があります:\n${info.desc}`
-          ).join("\n");
-          const fixPromptAlt = `前回の回答で以下の代替案が遂行不可能でした：\n${altDetails}\n\n【修正指示】遂行不可能な代替案を修正してください。1日に複数経由地がある場合は区間距離・時間を必ず足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
-          const fixedRawAlt = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPromptAlt}`);
+         if (infeasibleAltDetails.length === 0) break; // 全代替案が遂行可能 → ループ終了
+         const altDetails = infeasibleAltDetails.map(info =>
+           `代替案${info.index + 1}に遂行不可能な日（距離300km超かつ時間6時間超）があります:\n${info.desc}`
+         ).join("\n");
+         const fixPromptAlt = `前回の回答で以下の代替案が遂行不可能でした：\n${altDetails}\n\n【修正指示】遂行不可能な代替案を修正してください。1日に複数経由地がある場合は区間距離・時間を必ず足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
+         const fixedRawAlt = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPromptAlt}`);
+         try {
+           const cleanFixedAlt = fixedRawAlt.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`\s*$/, "").trim();
+           parsed = JSON.parse(cleanFixedAlt);
+         } catch {
+           break; // パース失敗時はループ終了
+         }
+       }
+
+        // 3回ループ後も遂行不能な代替案が残った場合：必須スポットを大幅削減して再生成
+        const stillInfeasibleAfterLoop = (parsed.alternatives ?? []).some(alt => {
+          if (alt.days && alt.days.length > 0) {
+            return alt.days.some((d: { distance: number; time: number }) => d.distance > 300 && d.time > 6);
+          } else if (alt.markdownTable) {
+            return parseMarkdownTableForFeasibility(alt.markdownTable).some(r => r.distance > 300 && r.time > 6);
+          }
+          return false;
+        });
+        if (stillInfeasibleAfterLoop) {
+          const emergencyPrompt = `【緊急修正指示】代替案に遂行不可能な日（1日の走行距離300km超かつ走行時間6時間超）が含まれています。\n\n必須スポットを何個でも削って構いません。出発地・終着地のみ維持し、1日の走行距離が300km以下かつ走行時間が6時間以下に収まる遂行可能な代替案を2案生成してください。スポットを大幅に削減しても構いません。同じJSON形式で全体を返してください。`;
+          const emergencyRaw = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${emergencyPrompt}`);
           try {
-            const cleanFixedAlt = fixedRawAlt.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`\s*$/, "").trim();
-            parsed = JSON.parse(cleanFixedAlt);
+            const cleanEmergency = emergencyRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+            const emergencyParsed = JSON.parse(cleanEmergency);
+            parsed.alternatives = emergencyParsed.alternatives ?? parsed.alternatives;
           } catch {
-            break; // パース失敗時はループ終了
+            // 緊急再生成失敗時は現状のまま
           }
         }
 
