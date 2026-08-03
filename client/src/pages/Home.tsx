@@ -464,6 +464,28 @@ export default function Home() {
                   <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
                     ※あくまで自動で算出される簡易的なモデルコースです。お問い合わせいただいた際に他にご要望があればお伝えください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
                   </p>
+                  {/* 過密日警告：AまたはBのどちらか一方のみ満たす日がある場合 */}
+                  {(() => {
+                    if (!itineraryResult?.days) return null;
+                    // AかつBの両方を満たす日 → 遂行不可能（A判定）なので対象外
+                    // AまたはBのいずれか一方のみを満たす日 → 遂行可能だが過密
+                    const busyDays = itineraryResult.days.filter(day => {
+                      if (day.isStay) return false;
+                      const overDist = day.distance > 300;
+                      const overTime = day.time > 6;
+                      // 一方のみ満たす場合が過密日
+                      return (overDist && !overTime) || (!overDist && overTime);
+                    });
+                    if (busyDays.length === 0) return null;
+                    const dateList = busyDays.map(d => d.date).join("・");
+                    return (
+                      <div className="rounded-xl p-4 text-sm leading-relaxed" style={{ background: "#FFF7F7", border: "1px solid #FECACA" }}>
+                        <p style={{ color: "#374151" }}>
+                          遂行可能でありますが、<span style={{ color: "#DC2626", fontWeight: "bold" }}>上記のプランは「無理のない観光旅程」とは言えません。</span>特に{dateList}が過密です。お問い合わせいただいた時に現実的に無理なく旅行を最大限楽しめるプランについてもご案内させていただきます。
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
