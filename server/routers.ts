@@ -435,9 +435,19 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           markdownTable += `\n総走行距離の目安：${parsed.totalDistance}km前後\n\n`;
           markdownTable += "※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。";
         }
-
-       return {
-         days: parsed.days,
+       // 代替案のdaysが空の場合はmarkdownTableからパースして補完（警告文表示のため）
+       const enrichedAlternatives = (parsed.alternatives ?? []).map(alt => {
+          if (alt.days && alt.days.length > 0) return alt;
+          if (alt.markdownTable) {
+            const parsedDays = parseMarkdownTableForFeasibility(alt.markdownTable);
+            if (parsedDays.length > 0) {
+              return { ...alt, days: parsedDays };
+            }
+          }
+          return alt;
+        });
+        return {
+          days: parsed.days,
           totalDistance: parsed.totalDistance,
           totalDays: parsed.days.length,
           specialNotes: parsed.specialNotes,
@@ -445,7 +455,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           judgment: parsed.judgment ?? "OK",
           planName: parsed.planName ?? "",
           judgmentMessage: parsed.judgmentMessage ?? "",
-          alternatives: parsed.alternatives ?? [],
+          alternatives: enrichedAlternatives,
           markdownTable,
         };
       }),
