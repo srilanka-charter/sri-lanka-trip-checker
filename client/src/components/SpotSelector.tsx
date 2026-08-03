@@ -136,9 +136,9 @@ export default function SpotSelector({
                 <SelectTrigger
                   className="flex-1 h-9 text-sm"
                   style={{
-                    borderColor: `${color}40`,
-                    background: `${color}08`,
-                    color: row.selected ? "#3D2B1F" : "#A8896B",
+                    borderColor: "#D1D5DB",
+                    background: "#FFFFFF",
+                    color: row.selected ? "#111827" : "#9CA3AF",
                   }}
                 >
                   <SelectValue placeholder="スポットを選択" />
@@ -172,9 +172,9 @@ export default function SpotSelector({
                   placeholder="スポット名を入力してください"
                   className="h-9 text-sm"
                   style={{
-                    borderColor: `${color}40`,
-                    background: `${color}08`,
-                    color: "#3D2B1F",
+                    borderColor: "#D1D5DB",
+                    background: "#FFFFFF",
+                    color: "#111827",
                   }}
                 />
               </div>
@@ -191,8 +191,8 @@ export default function SpotSelector({
         onClick={handleAddRow}
         className="h-8 text-xs px-3 mt-1"
         style={{
-          borderColor: `${color}50`,
-          color: color,
+          borderColor: "#D1D5DB",
+          color: "#374151",
           background: "transparent",
         }}
       >

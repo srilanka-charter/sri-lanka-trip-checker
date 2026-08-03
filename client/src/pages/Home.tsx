@@ -186,14 +186,14 @@ export default function Home() {
   const isJudgmentB = itineraryResult?.judgment === "B";
 
   return (
-    <div className="min-h-screen" style={{ background: "#FAF7F0", fontFamily: "'Noto Sans JP', sans-serif" }}>
+    <div className="min-h-screen" style={{ background: "#FFFFFF", fontFamily: "'Noto Sans JP', sans-serif" }}>
       {/* Header */}
       <header
         className="sticky top-0 z-50 border-b"
         style={{
-          background: "rgba(250,247,240,0.97)",
+          background: "rgba(255,255,255,0.97)",
           backdropFilter: "blur(12px)",
-          borderColor: "#E8D5A3",
+          borderColor: "#E5E7EB",
         }}
       >
         <div className="max-w-[1400px] mx-auto px-4 py-3 flex items-center gap-3">
@@ -205,11 +205,11 @@ export default function Home() {
           <div>
             <h1
               className="text-xl font-bold leading-tight"
-              style={{ fontFamily: "'Playfair Display', serif", color: "#C4622D" }}
+              style={{ fontFamily: "'Playfair Display', serif", color: "#111827" }}
             >
               スリランカ旅程提案チェッカー
             </h1>
-            <p className="text-xs" style={{ color: "#8B6B4A" }}>
+            <p className="text-xs" style={{ color: "#374151" }}>
               Sri Lanka Trip Planner
             </p>
           </div>
@@ -217,7 +217,7 @@ export default function Home() {
             <Badge
               variant="outline"
               className="text-xs hidden sm:flex"
-              style={{ borderColor: "#C4622D", color: "#C4622D" }}
+              style={{ borderColor: "#3B5BDB", color: "#3B5BDB" }}
             >
               距離データ準拠
             </Badge>
@@ -230,7 +230,7 @@ export default function Home() {
         {/* Left: Form Panel (sticky on desktop) */}
         <div
           className="lg:w-[420px] xl:w-[460px] flex-shrink-0"
-          style={{ borderRight: "1px solid #E8D5A3" }}
+          style={{ borderRight: "1px solid #E5E7EB" }}
         >
           <div
             className="lg:sticky lg:top-[60px] lg:max-h-[calc(100vh-60px)] lg:overflow-y-auto"
@@ -240,7 +240,7 @@ export default function Home() {
               <div
                 className="rounded-xl p-4 relative overflow-hidden"
                 style={{
-                  background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                  background: "linear-gradient(135deg, #3B5BDB 0%, #2D4FC0 100%)",
                   color: "white",
                 }}
               >
@@ -278,7 +278,7 @@ export default function Home() {
               <FormSection icon={<Navigation size={16} />} title="出発地・終着地">
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#374151" }}>
                       出発地（Start Point）
                     </label>
                     <LocationSelect
@@ -288,7 +288,7 @@ export default function Home() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+                    <label className="text-xs font-medium mb-1.5 block" style={{ color: "#374151" }}>
                       終着地（End Point）
                     </label>
                     <LocationSelect
@@ -306,10 +306,10 @@ export default function Home() {
                  selected={mustVisit}
                  onChange={setMustVisit}
                  exclude={[startPoint, endPoint, ...niceToVisit]}
-                 color="#C4622D"
+                 color="#3B5BDB"
                  placeholder=""
                />
-                <p className="text-xs mt-3 leading-relaxed" style={{ color: "#8B6B4A" }}>
+                <p className="text-xs mt-3 leading-relaxed" style={{ color: "#374151" }}>
                   紅茶列車に乗車したい場合、現在の運行区間のヌワラエリヤ、エッラを選択してください。問い合わせ後に乗車区間や予約法についてご案内申し上げます。
                 </p>
               </FormSection>
@@ -320,7 +320,7 @@ export default function Home() {
                   selected={niceToVisit}
                   onChange={setNiceToVisit}
                   exclude={[startPoint, endPoint, ...mustVisit]}
-                  color="#2D5A27"
+                  color="#3B5BDB"
                   placeholder=""
                 />
               </FormSection>
@@ -341,10 +341,10 @@ export default function Home() {
               <Button
                 className="w-full h-12 text-base font-semibold transition-all duration-200 active:scale-[0.98]"
                 style={{
-                  background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                  background: "#00CC88",
                   color: "white",
                   border: "none",
-                  boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+                  boxShadow: "0 4px 12px rgba(0,204,136,0.3)",
                 }}
                 onClick={handleGenerate}
                 disabled={isLoading || generateItinerary.isPending}
@@ -360,7 +360,7 @@ export default function Home() {
                 <Button
                   variant="outline"
                   className="w-full h-10 text-sm"
-                  style={{ borderColor: "#E8D5A3", color: "#8B6B4A" }}
+                  style={{ borderColor: "#D1D5DB", color: "#6B7280" }}
                   onClick={handleReset}
                 >
                   リセット
@@ -380,7 +380,7 @@ export default function Home() {
               minHeight: "500px",
               width: "100%",
               position: "relative",
-              borderBottom: "2px solid #E8D5A3",
+              borderBottom: "1px solid #E5E7EB",
             }}
           >
             <TripMap routeLocations={routeLocations} warningMode={isJudgmentB && showResult} />
@@ -390,21 +390,21 @@ export default function Home() {
           {showResult && result ? (
             <div
               className="flex-1 p-6"
-              style={{ background: "#FAF7F0" }}
+              style={{ background: "#FFFFFF" }}
             >
               {/* Result Header */}
               <div
                 className="flex items-center justify-between mb-5 pb-3"
-                style={{ borderBottom: "2px solid #E8D5A3" }}
+                style={{ borderBottom: "1px solid #E5E7EB" }}
               >
                 <div className="flex items-center gap-2">
                   <div
                     className="w-1 h-6 rounded-full"
-                    style={{ background: "#C4622D" }}
+                    style={{ background: "#3B5BDB" }}
                   />
                   <h3
                     className="text-xl font-bold"
-                    style={{ fontFamily: "'Playfair Display', serif", color: "#C4622D" }}
+                    style={{ fontFamily: "'Playfair Display', serif", color: "#111827" }}
                   >
                     旅程提案結果
                   </h3>
@@ -413,7 +413,7 @@ export default function Home() {
                   variant="ghost"
                   size="sm"
                   onClick={handleReset}
-                  style={{ color: "#8B6B4A", fontSize: "12px" }}
+                  style={{ color: "#6B7280", fontSize: "12px" }}
                 >
                   リセット
                 </Button>
@@ -423,13 +423,13 @@ export default function Home() {
               <div
                 className="prose prose-sm max-w-none"
                 style={{
-                  "--tw-prose-body": "#3D2B1F",
-                  "--tw-prose-headings": "#C4622D",
-                  "--tw-prose-links": "#C4622D",
-                  "--tw-prose-bold": "#3D2B1F",
-                  "--tw-prose-tables": "#3D2B1F",
-                  "--tw-prose-th-borders": "#E8D5A3",
-                  "--tw-prose-td-borders": "#E8D5A3",
+                  "--tw-prose-body": "#111827",
+                  "--tw-prose-headings": "#111827",
+                  "--tw-prose-links": "#3B5BDB",
+                  "--tw-prose-bold": "#111827",
+                  "--tw-prose-tables": "#111827",
+                  "--tw-prose-th-borders": "#E5E7EB",
+                  "--tw-prose-td-borders": "#E5E7EB",
                 } as React.CSSProperties}
               >
               <Streamdown>{result}</Streamdown>
@@ -441,8 +441,8 @@ export default function Home() {
                   className="mt-6 rounded-2xl p-6 space-y-4"
                   style={{
                     background: "white",
-                    border: "1px solid #E8D5A3",
-                    boxShadow: "0 2px 8px rgba(196,98,45,0.08)",
+                    border: "1px solid #E5E7EB",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
                   }}
                 >
                   <button
@@ -452,16 +452,16 @@ export default function Home() {
                     }}
                     className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
                     style={{
-                      background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+                      background: "#00CC88",
                       border: "none",
                       color: "white",
-                      boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+                      boxShadow: "0 4px 12px rgba(0,204,136,0.3)",
                     }}
                   >
                     <MessageCircle size={16} />
                     この旅程で金額を問い合わせる
                   </button>
-                  <p className="text-xs leading-relaxed" style={{ color: "#8B6B4A" }}>
+                  <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
                     ※あくまで自動で算出される簡易的なモデルコースです。お問い合わせいただいた際に他にご要望があればお伝えください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
                   </p>
                 </div>
@@ -472,9 +472,9 @@ export default function Home() {
                 <div
                   className="mt-6 p-4 rounded-xl text-sm leading-relaxed"
                   style={{
-                    background: "#FFF8F0",
-                    border: "1px solid #E8D5A3",
-                    color: "#3D2B1F",
+                    background: "#F0F4FF",
+                    border: "1px solid #C7D2FE",
+                    color: "#1E3A8A",
                   }}
                 >
                   {itineraryResult.judgmentMessage}
@@ -499,17 +499,17 @@ export default function Home() {
             >
               <div
                 className="w-16 h-16 rounded-full flex items-center justify-center mb-4"
-                style={{ background: "#F0E8D8" }}
+                style={{ background: "#EFF6FF" }}
               >
-                <MapPin size={28} style={{ color: "#C4622D" }} />
+                <MapPin size={28} style={{ color: "#3B5BDB" }} />
               </div>
               <p
                 className="text-base font-medium mb-2"
-                style={{ color: "#8B6B4A", fontFamily: "'Playfair Display', serif" }}
+                style={{ color: "#374151", fontFamily: "'Playfair Display', serif" }}
               >
                 旅程を入力して生成してください
               </p>
-              <p className="text-sm" style={{ color: "#A8896B" }}>
+              <p className="text-sm" style={{ color: "#9CA3AF" }}>
                 左のフォームに旅行期間・出発地・終着地を入力し、<br />
                 「旅程を生成する」ボタンを押すと地図上にルートが描画されます
               </p>
@@ -537,13 +537,13 @@ function FormSection({
       className="rounded-xl p-4"
       style={{
         background: "white",
-        border: "1px solid #E8D5A3",
-        boxShadow: "0 1px 4px rgba(196,98,45,0.06)",
+        border: "1px solid #D1D5DB",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
       }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <span style={{ color: "#C4622D" }}>{icon}</span>
-        <h3 className="text-sm font-semibold" style={{ color: "#3D2B1F" }}>
+        <span style={{ color: "#3B5BDB" }}>{icon}</span>
+        <h3 className="text-sm font-semibold" style={{ color: "#111827" }}>
           {title}
         </h3>
       </div>
@@ -566,9 +566,9 @@ function LocationSelect({
       <SelectTrigger
         className="w-full h-10 text-sm"
         style={{
-          borderColor: "#E8D5A3",
-          background: "#FAF7F0",
-          color: value ? "#3D2B1F" : "#A8896B",
+          borderColor: "#D1D5DB",
+          background: "#FFFFFF",
+          color: value ? "#111827" : "#9CA3AF",
         }}
       >
         <SelectValue placeholder={placeholder} />
@@ -577,7 +577,7 @@ function LocationSelect({
         {LOCATIONS.map((loc) => (
           <SelectItem key={loc.id} value={loc.label}>
             <span className="flex items-center gap-2">
-              <MapPin size={12} style={{ color: "#C4622D" }} />
+              <MapPin size={12} style={{ color: "#3B5BDB" }} />
               {loc.label}
             </span>
           </SelectItem>
@@ -602,12 +602,12 @@ function AlternativePlansSection({
     <div className="mt-8">
       <div
         className="flex items-center gap-2 mb-5 pb-3"
-        style={{ borderBottom: "2px solid #E8D5A3" }}
+        style={{ borderBottom: "1px solid #E5E7EB" }}
       >
-        <div className="w-1 h-6 rounded-full" style={{ background: "#2D5A27" }} />
+        <div className="w-1 h-6 rounded-full" style={{ background: "#3B5BDB" }} />
         <h3
           className="text-xl font-bold"
-          style={{ fontFamily: "'Playfair Display', serif", color: "#2D5A27" }}
+          style={{ fontFamily: "'Playfair Display', serif", color: "#111827" }}
         >
           代替案のご提案
         </h3>
@@ -646,9 +646,9 @@ function AlternativePlanCard({
   })();
 
   const allColors = [
-    { bg: "#EFF6EE", border: "#2D5A27", accent: "#2D5A27", badge: "#D4EDD0" },
-    { bg: "#FFF8F0", border: "#C4622D", accent: "#C4622D", badge: "#FFE8D4" },
-    { bg: "#EFF4FF", border: "#2D4FA3", accent: "#2D4FA3", badge: "#D0DCFF" },
+    { bg: "#EFF4FF", border: "#3B5BDB", accent: "#3B5BDB", badge: "#D0DCFF" },
+    { bg: "#F0F9FF", border: "#0284C7", accent: "#0284C7", badge: "#BAE6FD" },
+    { bg: "#F5F3FF", border: "#7C3AED", accent: "#7C3AED", badge: "#DDD6FE" },
   ];
   const c = allColors[(index - 1) % 3];
 
@@ -692,7 +692,7 @@ function AlternativePlanCard({
         {/* 代替案の地図 */}
         <div
           className="rounded-xl overflow-hidden"
-          style={{ border: "1px solid #E8D5A3", height: "280px" }}
+          style={{ border: "1px solid #E5E7EB", height: "280px" }}
         >
           <TripMap routeLocations={altRoute} compact />
         </div>
@@ -700,11 +700,11 @@ function AlternativePlanCard({
         {/* Distance Table */}
         <div
           className="rounded-xl overflow-hidden"
-          style={{ border: "1px solid #E8D5A3" }}
+          style={{ border: "1px solid #E5E7EB" }}
         >
           <div
             className="px-4 py-2 text-xs font-semibold"
-            style={{ background: "#E8D5A3", color: "#3D2B1F" }}
+            style={{ background: "#F3F4F6", color: "#374151" }}
           >
             距離・時間表
           </div>
@@ -712,10 +712,10 @@ function AlternativePlanCard({
             className="p-4 prose prose-sm max-w-none"
             style={{
               background: "white",
-              "--tw-prose-body": "#3D2B1F",
+              "--tw-prose-body": "#111827",
               "--tw-prose-headings": c.accent,
-              "--tw-prose-th-borders": "#E8D5A3",
-              "--tw-prose-td-borders": "#E8D5A3",
+              "--tw-prose-th-borders": "#E5E7EB",
+              "--tw-prose-td-borders": "#E5E7EB",
             } as React.CSSProperties}
           >
             <Streamdown>{alt.markdownTable}</Streamdown>
@@ -738,7 +738,7 @@ function InfoChip({ label, text, color, bgColor }: { label: string; text: string
       <p className="text-xs font-bold mb-1" style={{ color }}>
         {label}
       </p>
-      <p className="text-xs leading-relaxed" style={{ color: "#3D2B1F" }}>
+      <p className="text-xs leading-relaxed" style={{ color: "#374151" }}>
         {text}
       </p>
     </div>
@@ -753,8 +753,8 @@ function ContactSection() {
       className="mt-8 rounded-2xl p-6 space-y-4"
       style={{
         background: "white",
-        border: "1px solid #E8D5A3",
-        boxShadow: "0 2px 8px rgba(196,98,45,0.08)",
+        border: "1px solid #E5E7EB",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
       }}
     >
       <button
@@ -763,10 +763,10 @@ function ContactSection() {
         }}
         className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
         style={{
-          background: "linear-gradient(135deg, #C4622D 0%, #A0522D 100%)",
+          background: "#00CC88",
           border: "none",
           color: "white",
-          boxShadow: "0 4px 12px rgba(196,98,45,0.3)",
+          boxShadow: "0 4px 12px rgba(0,204,136,0.3)",
         }}
       >
         <MessageCircle size={16} />
@@ -774,7 +774,7 @@ function ContactSection() {
       </button>
       <p
         className="text-xs leading-relaxed"
-        style={{ color: "#8B6B4A" }}
+        style={{ color: "#6B7280" }}
       >
         ※この結果は不完全な場合もあります。追加でご要望等があればお問い合わせ時に追記してください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
       </p>

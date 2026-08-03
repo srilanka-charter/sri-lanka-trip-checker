@@ -188,7 +188,7 @@ export function MapView({
     <div className={cn("w-full h-full relative", className)} style={style}>
       <div ref={mapContainer} className="w-full h-full" />
       {loadError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-amber-50 text-amber-800 text-sm p-4 text-center">
+        <div className="absolute inset-0 flex items-center justify-center bg-white text-gray-500 text-sm p-4 text-center">
           地図の読み込みに失敗しました。<br />ページを再読み込みしてください。
         </div>
       )}

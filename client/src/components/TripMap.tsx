@@ -139,9 +139,9 @@ export default function TripMap({ routeLocations, warningMode = false, compact =
         <div
           className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium pointer-events-none whitespace-nowrap"
           style={{
-            background: "rgba(250,247,240,0.92)",
-            border: "1px solid #E8D5A3",
-            color: "#8B6B4A",
+            background: "rgba(255,255,255,0.92)",
+            border: "1px solid #E5E7EB",
+            color: "#6B7280",
             backdropFilter: "blur(8px)",
           }}
         >

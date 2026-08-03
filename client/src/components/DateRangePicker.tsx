@@ -38,7 +38,7 @@ export default function DateRangePicker({
       <div className="grid grid-cols-2 gap-2">
         {/* Start Date */}
         <div>
-          <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+          <label className="text-xs font-medium mb-1.5 block" style={{ color: "#374151" }}>
             開始日
           </label>
           <Popover open={startOpen} onOpenChange={setStartOpen}>
@@ -47,12 +47,12 @@ export default function DateRangePicker({
                 variant="outline"
                 className="w-full h-10 text-sm justify-start font-normal"
                 style={{
-                  borderColor: "#E8D5A3",
-                  background: "#FAF7F0",
-                  color: startDate ? "#3D2B1F" : "#A8896B",
+                  borderColor: "#D1D5DB",
+                  background: "#FFFFFF",
+                  color: startDate ? "#111827" : "#9CA3AF",
                 }}
               >
-                <CalendarIcon size={14} className="mr-2 flex-shrink-0" style={{ color: "#C4622D" }} />
+                <CalendarIcon size={14} className="mr-2 flex-shrink-0" style={{ color: "#3B5BDB" }} />
                 {startDate ? format(startDate, "M/d (EEE)", { locale: ja }) : "選択"}
               </Button>
             </PopoverTrigger>
@@ -74,7 +74,7 @@ export default function DateRangePicker({
 
         {/* End Date */}
         <div>
-          <label className="text-xs font-medium mb-1.5 block" style={{ color: "#8B6B4A" }}>
+          <label className="text-xs font-medium mb-1.5 block" style={{ color: "#374151" }}>
             終了日
           </label>
           <Popover open={endOpen} onOpenChange={setEndOpen}>
@@ -83,12 +83,12 @@ export default function DateRangePicker({
                 variant="outline"
                 className="w-full h-10 text-sm justify-start font-normal"
                 style={{
-                  borderColor: "#E8D5A3",
-                  background: "#FAF7F0",
-                  color: endDate ? "#3D2B1F" : "#A8896B",
+                  borderColor: "#D1D5DB",
+                  background: "#FFFFFF",
+                  color: endDate ? "#111827" : "#9CA3AF",
                 }}
               >
-                <CalendarIcon size={14} className="mr-2 flex-shrink-0" style={{ color: "#C4622D" }} />
+                <CalendarIcon size={14} className="mr-2 flex-shrink-0" style={{ color: "#3B5BDB" }} />
                 {endDate ? format(endDate, "M/d (EEE)", { locale: ja }) : "選択"}
               </Button>
             </PopoverTrigger>
@@ -116,7 +116,7 @@ export default function DateRangePicker({
       {numDays !== null && (
         <div
           className="text-center py-2 rounded-lg text-sm font-semibold"
-          style={{ background: "#FFF5EE", color: "#C4622D", border: "1px solid #F4C9A8" }}
+          style={{ background: "#EFF6FF", color: "#3B5BDB", border: "1px solid #BFDBFE" }}
         >
           {numDays}日間の旅程
         </div>
