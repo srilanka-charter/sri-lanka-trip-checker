@@ -24,6 +24,7 @@ type AlternativePlan = {
   markdownTable: string;
   planName?: string;
   route?: string[];
+  days?: Array<{ date: string; segments: string; distance: number; time: number }>;
 };
 import { LOCATIONS, MAP_MARKERS } from "@/lib/locations";
 import { normalizeLocation } from "@/lib/distanceData";
@@ -468,14 +469,15 @@ export default function Home() {
                  {(() => {
                    if (!itineraryResult?.days) return null;
                    // A = 距離300km以上、B = 時間6時間以上
-                   // AとBの両方を満たす日 → 遂行不可能（A判定）なので対象外
-                   // AまたはBのいずれか一方のみを満たす日 → 遂行可能だが過密 → 警告表示
-                    const busyDays = itineraryResult.days.filter(day => {
-                      if (day.isStay) return false;
-                      // 遂行不可能（distance>300 かつ time>6）は除外
-                      if (day.distance > 300 && day.time > 6) return false;
-                      // A（距離300km以上）またはB（時間6時間以上）のどちらか一方以上を満たす日が過密
-                      return day.distance >= 300 || day.time >= 6;
+                  // AとBの両方を満たす日 → 遂行不可能（A判定）なので対象外
+                  // AまたはBのいずれか一方のみを満たす日 → 遂行可能だが過密 → 警告表示
+                   const busyDays = itineraryResult.days.filter(day => {
+                     if (day.isStay) return false;
+                     // 遂行不可能（distance>300 かつ time>6）は除外
+                     if (day.distance > 300 && day.time > 6) return false;
+                     // A（距離300km以上）またはB（時間6時間以上）のどちらか一方以上を満たす日が過密
+                      // A = 301km以上（distance > 300）、B = 6時間超（time > 6）
+                      return day.distance > 300 || day.time > 6;
                     });
                     if (busyDays.length === 0) return null;
                     const dateList = busyDays.map(d => d.date).join("・");
@@ -745,8 +747,8 @@ function AlternativePlanCard({
           </div>
         </div>
 
-        {/* 代替案ごとのコピー＆問い合わせボタン */}
-        <ContactSection />
+       {/* 代替案ごとのコピー＆問い合わせボタン */}
+        <ContactSection days={alt.days} />
       </div>
     </div>
   );
@@ -770,7 +772,15 @@ function InfoChip({ label, text, color, bgColor }: { label: string; text: string
 
 // ===== Contact Section =====
 
-function ContactSection() {
+function ContactSection({ days }: { days?: Array<{ date: string; segments: string; distance: number; time: number }> }) {
+  // 過密日警告：A（301km以上）またはB（6時間超）のどちらか一方のみを満たす日がある場合
+  const busyDays = (days ?? []).filter(day => {
+    // 遂行不可能（distance>300 かつ time>6）は除外
+    if (day.distance > 300 && day.time > 6) return false;
+    return day.distance > 300 || day.time > 6;
+  });
+  const dateList = busyDays.map(d => d.date).join("・");
+
   return (
     <div
       className="mt-8 rounded-2xl p-6 space-y-4"
@@ -801,6 +811,13 @@ function ContactSection() {
       >
         ※この結果は不完全な場合もあります。追加でご要望等があればお問い合わせ時に追記してください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
       </p>
+      {busyDays.length > 0 && (
+        <div className="rounded-xl p-4 text-sm leading-relaxed" style={{ background: "#FFF7F7", border: "1px solid #FECACA" }}>
+          <p style={{ color: "#374151" }}>
+            遂行可能でありますが、<span style={{ color: "#DC2626", fontWeight: "bold" }}>上記のプランは「無理のない観光旅程」とは言えません。</span>特に{dateList}が過密です。お問い合わせいただいた時に現実的に無理なく旅行を最大限楽しめるプランについてもご案内させていただきます。
+          </p>
+        </div>
+      )}
     </div>
   );
 }
