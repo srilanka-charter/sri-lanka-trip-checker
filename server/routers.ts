@@ -327,9 +327,37 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           throw new Error("AI旅程生成のJSON解析に失敗しました");
         }
 
-        // 遂行不可能チェック：1日の距離300km超かつ時間6時間超の両方を満たす日があるか
-        const isInfeasibleDay = (d: { distance: number; time: number }) =>
-          d.distance > 300 && d.time > 6;
+       // 遂行不可能チェック：1日の距離300km超かつ時間6時間超の両方を満たす日があるか
+       const isInfeasibleDay = (d: { distance: number; time: number }) =>
+         d.distance > 300 && d.time > 6;
+
+        // 広域グランド 日数別総距離上限（この距離を超えるとB判定＝遂行不能）
+        const GRAND_DISTANCE_LIMITS: Record<number, number> = {
+          1: 270, 2: 540, 3: 594, 4: 792, 5: 900, 6: 972, 7: 1008,
+          8: 1080, 9: 1215, 10: 1350, 11: 1485, 12: 1620, 13: 1755, 14: 1890, 15: 2025,
+        };
+        const tripDays = parsed.days.length;
+        const grandLimit = GRAND_DISTANCE_LIMITS[tripDays] ?? (tripDays * 135);
+        const totalDist = parsed.totalDistance ?? parsed.days.reduce((s, d) => s + (d.distance ?? 0), 0);
+        if (totalDist > grandLimit && parsed.judgment !== "B") {
+          // AIが見落とした場合にサーバー側でB判定に強制上書き
+          parsed.judgment = "B";
+          parsed.judgmentMessage = "ご希望の行程は移動範囲がかなり広く、このままの内容ではご案内が難しい状況です。安全面と観光時間を確保しやすくするため、行程を調整した代替案を2案ご提案いたします。";
+          // 代替案がない場合はAIに再生成を依頼
+          if (!parsed.alternatives || parsed.alternatives.length === 0) {
+            const fixPromptB = `前回の回答で総走行距離${totalDist}kmが${tripDays}日間の上限${grandLimit}kmを超えています。B判定として代替案2案を生成してください。同じJSON形式で全体を返してください。`;
+            const fixedRawB = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPromptB}`);
+            try {
+              const cleanFixedB = fixedRawB.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+              const reparsed = JSON.parse(cleanFixedB);
+              parsed.alternatives = reparsed.alternatives ?? [];
+              parsed.judgment = "B";
+              parsed.judgmentMessage = "ご希望の行程は移動範囲がかなり広く、このままの内容ではご案内が難しい状況です。安全面と観光時間を確保しやすくするため、行程を調整した代替案を2案ご提案いたします。";
+            } catch {
+              // 再生成失敗時はB判定のまま代替案なしで返す
+            }
+          }
+        }
 
         // 代替案の遂行可能性チェック → 遂行不可能な代替案がある場合は再生成
         const infeasibleAltIndices = (parsed.alternatives ?? []).reduce<number[]>((acc, alt, i) => {
