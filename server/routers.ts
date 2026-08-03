@@ -359,64 +359,39 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           }
         }
 
-        // 代替案の遂行可能性チェック → 遂行不可能な代替案がある場合は再生成
-        const infeasibleAltIndices = (parsed.alternatives ?? []).reduce<number[]>((acc, alt, i) => {
-          if (alt.days && alt.days.some(isInfeasibleDay)) acc.push(i);
-          return acc;
-        }, []);
-
-        if (infeasibleAltIndices.length > 0) {
-          // 再生成プロンプト：遂行不可能な代替案を明示して修正を要求
-          const infeasibleDetails = infeasibleAltIndices.map(i => {
+        // 代替案の遂行可能性チェック（最大3回ループ）
+        // days配列がない場合はmarkdownTableからパースして検証する統合チェック
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const infeasibleAltDetails: Array<{ index: number; desc: string }> = [];
+          for (let i = 0; i < (parsed.alternatives ?? []).length; i++) {
             const alt = parsed.alternatives[i];
-            const badDays = (alt.days ?? []).filter(isInfeasibleDay);
-            return `代替案${i + 1}の以下の日が遂行不可能（距離300km超かつ時間6時間超）:\n${badDays.map(d => `  ${d.date}: ${d.segments} ${d.distance}km/${d.time}h`).join("\n")}`;
-          }).join("\n");
-
-          const fixPrompt = `前回の回答で以下の代替案が遂行不可能でした：\n${infeasibleDetails}\n\n【修正指示】遂行不可能な代替案を修正してください。各日の距離と時間を足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
-
-          const fixedRaw = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPrompt}`);
-          try {
-            const cleanFixed = fixedRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-            parsed = JSON.parse(cleanFixed);
-          } catch {
-            // 再生成失敗時は元のparsedをそのまま使用
+            let badRows: Array<{ date: string; distance: number; time: number }> = [];
+            if (alt.days && alt.days.length > 0) {
+              badRows = alt.days
+                .map((d: { date: string; distance: number; time: number }) => ({ date: d.date, distance: d.distance, time: d.time }))
+                .filter((d: { distance: number; time: number }) => d.distance > 300 && d.time > 6);
+            } else if (alt.markdownTable) {
+              const parsedRows = parseMarkdownTableForFeasibility(alt.markdownTable);
+              badRows = parsedRows.filter(r => r.distance > 300 && r.time > 6);
+            }
+            if (badRows.length > 0) {
+              infeasibleAltDetails.push({
+                index: i,
+                desc: badRows.map(d => `  ${d.date}: ${d.distance}km/${d.time}h`).join("\n"),
+              });
+            }
           }
-        }
-        // markdownTableベースで代替案の遂行可能性チェック（AIがdays配列を返さない場合の安全網）
-        const altInfeasibleInfo: Array<{ index: number; badDayDesc: string }> = [];
-        for (let i = 0; i < (parsed.alternatives ?? []).length; i++) {
-          const alt = parsed.alternatives[i];
-          // daysフィールドがある場合はそちらを優先
-          let badRows: Array<{ date: string; distance: number; time: number }> = [];
-          if (alt.days && alt.days.length > 0) {
-            badRows = alt.days.filter(d => d.distance > 300 && d.time > 6);
-          } else if (alt.markdownTable) {
-            // markdownTableをパースして検出
-            const parsedRows = parseMarkdownTableForFeasibility(alt.markdownTable);
-            badRows = parsedRows.filter(r => r.distance > 300 && r.time > 6);
-          }
-          if (badRows.length > 0) {
-            altInfeasibleInfo.push({
-              index: i,
-              badDayDesc: badRows.map(d => `  ${d.date}: ${d.distance}km/${d.time}h`).join("\n"),
-            });
-          }
-        }
-
-        if (altInfeasibleInfo.length > 0) {
-          const details = altInfeasibleInfo.map(info =>
-            `代替案${info.index + 1}に遂行不可能な日（距離300km超かつ時間6時間超）があります:\n${info.badDayDesc}`
+          if (infeasibleAltDetails.length === 0) break; // 全代替案が遂行可能 → ループ終了
+          const altDetails = infeasibleAltDetails.map(info =>
+            `代替案${info.index + 1}に遂行不可能な日（距離300km超かつ時間6時間超）があります:\n${info.desc}`
           ).join("\n");
-
-          const fixPrompt2 = `前回の回答で以下の代替案が遂行不可能でした：\n${details}\n\n【修正指示】遂行不可能な代替案を修正してください。1日に複数経由地がある場合は区間距離・時間を必ず足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
-
-          const fixedRaw2 = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPrompt2}`);
+          const fixPromptAlt = `前回の回答で以下の代替案が遂行不可能でした：\n${altDetails}\n\n【修正指示】遂行不可能な代替案を修正してください。1日に複数経由地がある場合は区間距離・時間を必ず足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
+          const fixedRawAlt = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPromptAlt}`);
           try {
-            const cleanFixed2 = fixedRaw2.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-            parsed = JSON.parse(cleanFixed2);
+            const cleanFixedAlt = fixedRawAlt.replace(/^\`\`\`(?:json)?\s*/i, "").replace(/\s*\`\`\`\s*$/, "").trim();
+            parsed = JSON.parse(cleanFixedAlt);
           } catch {
-            // 再生成失敗時は元のparsedをそのまま使用
+            break; // パース失敗時はループ終了
           }
         }
 
