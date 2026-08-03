@@ -51,9 +51,50 @@ export interface AlternativePlan {
   totalDistance: number;
   planType: string;
   markdownTable: string;
+  judgment: "OK" | "A" | "B";
 }
 
-// 修正⑤: 代替案生成ヘルパー（必須スポットを1つ削除）
+/**
+ * 代替案が遂行不可能（A判定: 1日300km超かつ6時間超）の場合、
+ * 遂行可能になるまで必須スポットを後ろから1つずつ削り続けるヘルパー
+ */
+function makeFeasible(
+  input: TripInput,
+  initialRemovedMust: string[]
+): { result: ReturnType<typeof planItinerary>; allRemovedMust: string[] } {
+  const normMust = input.mustVisit.map(normalizeLocation);
+  let removedMust = [...initialRemovedMust];
+  let remainingMust = normMust.filter(v => !removedMust.includes(v));
+
+  // 最大試行回数 = 全必須スポット数
+  for (let attempt = 0; attempt <= normMust.length; attempt++) {
+    const altInput: TripInput = {
+      ...input,
+      mustVisit: input.mustVisit.filter(v => !removedMust.includes(normalizeLocation(v))),
+      _isAlternative: true,
+    };
+    const result = planItinerary(altInput);
+    const isFeasible = !checkAJudgment(result.days) && result.judgment !== "B";
+    if (isFeasible) {
+      return { result, allRemovedMust: removedMust };
+    }
+    // まだ遂行不可能 → 残りの必須スポットをさらに1つ削る（後ろから）
+    if (remainingMust.length === 0) break;
+    const nextRemove = remainingMust[remainingMust.length - 1];
+    removedMust = [...removedMust, nextRemove];
+    remainingMust = remainingMust.filter(v => v !== nextRemove);
+  }
+  // 必須スポットを全て削っても遂行不可能な場合はそのまま返す
+  const altInput: TripInput = {
+    ...input,
+    mustVisit: [],
+    niceToVisit: [],
+    _isAlternative: true,
+  };
+  return { result: planItinerary(altInput), allRemovedMust: normMust };
+}
+
+// 修正⑤: 代替案生成ヘルパー（必須スポットを1つ以上削除、遂行可能になるまで）
 function generateAlt_removeMust(
   input: TripInput,
   altTitle: string,
@@ -62,21 +103,24 @@ function generateAlt_removeMust(
   merit: string,
   caution: string
 ): AlternativePlan {
-  const altInput: TripInput = {
-    ...input,
-    mustVisit: input.mustVisit.filter(v => !removedMust.includes(normalizeLocation(v))),
-    _isAlternative: true,
-  };
-  const result = planItinerary(altInput);
+  const { result, allRemovedMust } = makeFeasible(input, removedMust);
+  // 削除したスポットが増えた場合は注意書きを更新
+  let finalCaution = caution;
+  if (allRemovedMust.length > removedMust.length) {
+    finalCaution = `遂行可能な行程にするため、「${allRemovedMust.join("・")}」を省略しました。`;
+  }
   return {
     title: altTitle,
-    adjustment: adjustmentNote,
+    adjustment: allRemovedMust.length > removedMust.length
+      ? `「${allRemovedMust.join("・")}」を省略し、移動負担を軽減した行程`
+      : adjustmentNote,
     merit,
-    caution,
+    caution: finalCaution,
     days: result.days,
     totalDistance: result.totalDistance,
     planType: result.planType,
     markdownTable: result.markdownTable,
+    judgment: result.judgment,
   };
 }
 
@@ -393,17 +437,14 @@ function determinePlanType(
 
 /**
  * Check A judgment (single day overload)
- * A判定: 1日の走行距離300km超かつ走行時間6時間超、または走行時間のみ6時間超
- * ただし距離300km超でも走行時間6時間以内なら原則可（A判定しない）
+ * A判定: 1日の走行距離300km超 かつ 走行時間6時間超 の両方を満たす場合のみ遂行不可能
+ * どちらか一方のみ（距離超過のみ、または時間超過のみ）は遂行可能
  */
 function checkAJudgment(days: DayItinerary[]): boolean {
   return days.some(d => {
     if (d.isStay || d.isPickup || d.isReturn) return false;
-    // 距離300km超 AND 時間6時間超 → A判定
-    if (d.distance > 300 && d.time > 6) return true;
-    // 距離300km以内でも時間6時間超 → A判定（分散提案を優先）
-    if (d.distance <= 300 && d.time > 6) return true;
-    return false;
+    // 距離300km超 AND 時間6時間超 の両方を満たす場合のみA判定（遂行不可能）
+    return d.distance > 300 && d.time > 6;
   });
 }
 
@@ -460,6 +501,7 @@ function generateAlternative(
     totalDistance: result.totalDistance,
     planType: result.planType,
     markdownTable: result.markdownTable,
+    judgment: result.judgment,
   };
 }
 
@@ -616,34 +658,26 @@ export function planItinerary(input: TripInput): ItineraryResult {
     }
 
     // Alt 3: 1日延長して必須スポットを可能な限り巡る
-    const extInput3: TripInput = {
+    // Alt 3: 1日延長して必須スポットを可能な限り巡る（遂行不可能なら必須スポットを削る）
+    const extInput3Base: TripInput = {
       ...input,
       endDate: input.endDate ? addDays(input.endDate, 1) : null,
-      niceToVisit: [], // できたら行きたい場所は削除（難しければ）
+      niceToVisit: [],
       _isAlternative: true,
     };
-    const alt3Result = planItinerary(extInput3);
-    // 1日延長でもB判定の場合は必須スポットを1つ削る
+    const { result: alt3Result, allRemovedMust: alt3Removed } = makeFeasible(extInput3Base, []);
     let alt3: AlternativePlan;
-    if (alt3Result.judgment === "B" && normMust.length > 1) {
-      const removedMust = normMust[normMust.length - 1];
-      const extInput3Reduced: TripInput = {
-        ...input,
-        endDate: input.endDate ? addDays(input.endDate, 1) : null,
-        mustVisit: input.mustVisit.filter(v => normalizeLocation(v) !== removedMust),
-        niceToVisit: [],
-        _isAlternative: true,
-      };
-      const alt3ReducedResult = planItinerary(extInput3Reduced);
+    if (alt3Removed.length > 0) {
       alt3 = {
         title: "代替案3",
-        adjustment: `1日延長し「${removedMust}」を省略した行程`,
+        adjustment: `1日延長し「${alt3Removed.join("・")}」を省略した行程`,
         merit: "旅行日数を1日増やすことで移動が分散され、必須スポットをほぼ全て巡れます。",
-        caution: `旅行日数の延長と「${removedMust}」の省略が必要です。`,
-        days: alt3ReducedResult.days,
-        totalDistance: alt3ReducedResult.totalDistance,
-        planType: alt3ReducedResult.planType,
-        markdownTable: alt3ReducedResult.markdownTable,
+        caution: `旅行日数の延長と「${alt3Removed.join("・")}」の省略が必要です。`,
+        days: alt3Result.days,
+        totalDistance: alt3Result.totalDistance,
+        planType: alt3Result.planType,
+        markdownTable: alt3Result.markdownTable,
+        judgment: alt3Result.judgment,
       };
     } else {
       alt3 = {
@@ -655,6 +689,7 @@ export function planItinerary(input: TripInput): ItineraryResult {
         totalDistance: alt3Result.totalDistance,
         planType: alt3Result.planType,
         markdownTable: alt3Result.markdownTable,
+        judgment: alt3Result.judgment,
       };
     }
 
