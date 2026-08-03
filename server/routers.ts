@@ -224,7 +224,15 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
       "caution": "注意点",
       "planName": "近郊プレミアム",
       "markdownTable": "| 日付 | 主な区間（迎車・回送含む） | 距離 | 走行時間の目安 |\n| --- | --- | ---: | --- |\n| 7/15 | コロンボ → キャンディ | 120km | 約3時間 |\n\n総走行距離の目安：400km前後\n\n※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。",
-      "route": ["コロンボ", "キャンディ", "コロンボ"]
+      "route": ["コロンボ", "キャンディ", "コロンボ"],
+      "days": [
+        {
+          "date": "7/15",
+          "segments": "コロンボ → キャンディ",
+          "distance": 120,
+          "time": 3.0
+        }
+      ]
     }
   ]
 }
@@ -236,7 +244,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
 - planNameは「近郊プレミアム」「広域グランド」のいずれか（B判定の原案は「-」）
 - judgmentMessageは判定に応じた説明文（A判定文・B判定文・原案成立＋改善提案文・または空文字）
 - markdownTableは原案の4列距離表（総走行距離・注釈含む）
-- alternativesはA/B判定時のみ生成（最大2つ）、問題がない場合は空配列。各alternativeには必ずrouteフィールドを含めること（地図描画用の正規地名リスト、出発地→経由地→終着地の順）
+- alternativesはA/B判定時のみ生成（最大2つ）、問題がない場合は空配列。各alternativeには必ずrouteフィールドとdaysフィールドを含めること。daysは各日の距離・時間を含む配列（遂行可能性検証に使用）。
 - 上記のキー以外は絶対に追加しないこと`;
 
         const userPrompt = `以下の条件で旅程を生成してください。
@@ -270,6 +278,7 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           caution: string;
           markdownTable: string;
           route?: string[];
+          days?: Array<{ date: string; segments: string; distance: number; time: number }>;
         }>;
           judgment?: string;
           planName?: string;
@@ -283,6 +292,35 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           parsed = JSON.parse(cleanContent);
         } catch {
           throw new Error("AI旅程生成のJSON解析に失敗しました");
+        }
+
+        // 遂行不可能チェック：1日の距離300km超かつ時間6時間超の両方を満たす日があるか
+        const isInfeasibleDay = (d: { distance: number; time: number }) =>
+          d.distance > 300 && d.time > 6;
+
+        // 代替案の遂行可能性チェック → 遂行不可能な代替案がある場合は再生成
+        const infeasibleAltIndices = (parsed.alternatives ?? []).reduce<number[]>((acc, alt, i) => {
+          if (alt.days && alt.days.some(isInfeasibleDay)) acc.push(i);
+          return acc;
+        }, []);
+
+        if (infeasibleAltIndices.length > 0) {
+          // 再生成プロンプト：遂行不可能な代替案を明示して修正を要求
+          const infeasibleDetails = infeasibleAltIndices.map(i => {
+            const alt = parsed.alternatives[i];
+            const badDays = (alt.days ?? []).filter(isInfeasibleDay);
+            return `代替案${i + 1}の以下の日が遂行不可能（距離300km超かつ時間6時間超）:\n${badDays.map(d => `  ${d.date}: ${d.segments} ${d.distance}km/${d.time}h`).join("\n")}`;
+          }).join("\n");
+
+          const fixPrompt = `前回の回答で以下の代替案が遂行不可能でした：\n${infeasibleDetails}\n\n【修正指示】遂行不可能な代替案を修正してください。各日の距離と時間を足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
+
+          const fixedRaw = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPrompt}`);
+          try {
+            const cleanFixed = fixedRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+            parsed = JSON.parse(cleanFixed);
+          } catch {
+            // 再生成失敗時は元のparsedをそのまま使用
+          }
         }
 
         // AIが生成したmarkdownTableをそのまま使う（なければフォールバック生成）
