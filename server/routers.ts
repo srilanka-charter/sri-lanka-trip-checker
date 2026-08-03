@@ -24,6 +24,39 @@ async function callClaudeOpus4(systemPrompt: string, userPrompt: string): Promis
   return block.text;
 }
 
+// markdownTableから各行の距離(km)と時間(h)を抽出して遂行不可能な日を検出する
+function parseMarkdownTableForFeasibility(markdownTable: string): Array<{ date: string; distance: number; time: number }> {
+  const rows: Array<{ date: string; distance: number; time: number }> = [];
+  const lines = markdownTable.split("\n");
+  for (const line of lines) {
+    if (!line.startsWith("|") || line.includes("---") || line.includes("日付")) continue;
+    const cols = line.split("|").map(c => c.trim()).filter(c => c.length > 0);
+    if (cols.length < 4) continue;
+    const date = cols[0];
+    const distStr = cols[2]; // 例: "340km"
+    const timeStr = cols[3]; // 例: "約8.5時間" or "約5〜6時間"
+    const distMatch = distStr.match(/(\d+(?:\.\d+)?)/);
+    // 時間は最大値を取る（例: "約5〜6時間" → 6）
+    const timeAllMatches = Array.from(timeStr.matchAll(/(\d+(?:\.\d+)?)/g));
+    const timeVal = timeAllMatches.length > 0
+      ? Math.max(...timeAllMatches.map(m => parseFloat(m[1])))
+      : null;
+    if (distMatch && timeVal !== null) {
+      rows.push({
+        date,
+        distance: parseFloat(distMatch[1]),
+        time: timeVal,
+      });
+    }
+  }
+  return rows;
+}
+
+// 1日の距離300km超かつ時間6時間超の両方を満たす日があるか
+function hasInfeasibleDay(rows: Array<{ distance: number; time: number }>): boolean {
+  return rows.some(r => r.distance > 300 && r.time > 6);
+}
+
 // スリランカ距離データ（プロンプト用）
 const DISTANCE_DATA_FOR_PROMPT = `
 【スリランカ地点間の距離・所要時間データ】
@@ -318,6 +351,42 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           try {
             const cleanFixed = fixedRaw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
             parsed = JSON.parse(cleanFixed);
+          } catch {
+            // 再生成失敗時は元のparsedをそのまま使用
+          }
+        }
+        // markdownTableベースで代替案の遂行可能性チェック（AIがdays配列を返さない場合の安全網）
+        const altInfeasibleInfo: Array<{ index: number; badDayDesc: string }> = [];
+        for (let i = 0; i < (parsed.alternatives ?? []).length; i++) {
+          const alt = parsed.alternatives[i];
+          // daysフィールドがある場合はそちらを優先
+          let badRows: Array<{ date: string; distance: number; time: number }> = [];
+          if (alt.days && alt.days.length > 0) {
+            badRows = alt.days.filter(d => d.distance > 300 && d.time > 6);
+          } else if (alt.markdownTable) {
+            // markdownTableをパースして検出
+            const parsedRows = parseMarkdownTableForFeasibility(alt.markdownTable);
+            badRows = parsedRows.filter(r => r.distance > 300 && r.time > 6);
+          }
+          if (badRows.length > 0) {
+            altInfeasibleInfo.push({
+              index: i,
+              badDayDesc: badRows.map(d => `  ${d.date}: ${d.distance}km/${d.time}h`).join("\n"),
+            });
+          }
+        }
+
+        if (altInfeasibleInfo.length > 0) {
+          const details = altInfeasibleInfo.map(info =>
+            `代替案${info.index + 1}に遂行不可能な日（距離300km超かつ時間6時間超）があります:\n${info.badDayDesc}`
+          ).join("\n");
+
+          const fixPrompt2 = `前回の回答で以下の代替案が遂行不可能でした：\n${details}\n\n【修正指示】遂行不可能な代替案を修正してください。1日に複数経由地がある場合は区間距離・時間を必ず足し合わせて計算し、「1日の走行距離300km超かつ走行時間6時間超」の日が含まれないよう、必要であれば必須スポットを何個でも削って遂行可能なプランを作り直してください。同じJSON形式で全体を返してください。`;
+
+          const fixedRaw2 = await callClaudeOpus4(systemPrompt, `${userPrompt}\n\n${fixPrompt2}`);
+          try {
+            const cleanFixed2 = fixedRaw2.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+            parsed = JSON.parse(cleanFixed2);
           } catch {
             // 再生成失敗時は元のparsedをそのまま使用
           }
