@@ -408,18 +408,18 @@ A/B判定より先に、初日特例・最終日特例・長時間拘束特例�
           markdownTable += "※実際の距離・時間は、当日の交通状況や立ち寄り内容により前後します。";
         }
 
-          return {
-            days: parsed.days,
-            totalDistance: parsed.totalDistance,
-            totalDays: parsed.days.length,
-            specialNotes: parsed.specialNotes,
-            route: parsed.route,
-            judgment: parsed.judgment ?? "OK",
-            planName: parsed.planName ?? "",
-            judgmentMessage: parsed.judgmentMessage ?? "",
-            alternatives: parsed.alternatives ?? [],
-            markdownTable,
-          };
+       return {
+         days: parsed.days,
+          totalDistance: parsed.totalDistance,
+          totalDays: parsed.days.length,
+          specialNotes: parsed.specialNotes,
+          route: parsed.route,
+          judgment: parsed.judgment ?? "OK",
+          planName: parsed.planName ?? "",
+          judgmentMessage: parsed.judgmentMessage ?? "",
+          alternatives: parsed.alternatives ?? [],
+          markdownTable,
+        };
       }),
 
   }),

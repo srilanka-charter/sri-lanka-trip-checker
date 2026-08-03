@@ -465,16 +465,17 @@ export default function Home() {
                     ※あくまで自動で算出される簡易的なモデルコースです。お問い合わせいただいた際に他にご要望があればお伝えください。カスタマーサポートから詳細と金額について、ご案内させていただきます。
                   </p>
                   {/* 過密日警告：AまたはBのどちらか一方のみ満たす日がある場合 */}
-                  {(() => {
-                    if (!itineraryResult?.days) return null;
-                    // AかつBの両方を満たす日 → 遂行不可能（A判定）なので対象外
-                    // AまたはBのいずれか一方のみを満たす日 → 遂行可能だが過密
+                 {(() => {
+                   if (!itineraryResult?.days) return null;
+                   // A = 距離300km以上、B = 時間6時間以上
+                   // AとBの両方を満たす日 → 遂行不可能（A判定）なので対象外
+                   // AまたはBのいずれか一方のみを満たす日 → 遂行可能だが過密 → 警告表示
                     const busyDays = itineraryResult.days.filter(day => {
                       if (day.isStay) return false;
-                      const overDist = day.distance > 300;
-                      const overTime = day.time > 6;
-                      // 一方のみ満たす場合が過密日
-                      return (overDist && !overTime) || (!overDist && overTime);
+                      // 遂行不可能（distance>300 かつ time>6）は除外
+                      if (day.distance > 300 && day.time > 6) return false;
+                      // A（距離300km以上）またはB（時間6時間以上）のどちらか一方以上を満たす日が過密
+                      return day.distance >= 300 || day.time >= 6;
                     });
                     if (busyDays.length === 0) return null;
                     const dateList = busyDays.map(d => d.date).join("・");
