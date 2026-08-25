@@ -7,7 +7,7 @@
  * Design: Tropical Cartography
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,30 @@ export default function SpotSelector({
   color,
 }: SpotSelectorProps) {
   const [rows, setRows] = useState<SpotRow[]>([makeRow(), makeRow()]);
+
+  // 親の選択値がリセット・外部更新された場合も、表示と実際に送る値を同期する。
+  useEffect(() => {
+    const currentValues = rows
+      .map(row => row.selected === "その他" ? row.customText.trim() : row.selected)
+      .filter(Boolean);
+    const isSame = currentValues.length === selected.length
+      && currentValues.every((value, index) => value === selected[index]);
+    if (isSame) return;
+
+    setRows(previousRows => {
+      const nextRows = selected.map(value => {
+        const existing = previousRows.find(row =>
+          (row.selected === "その他" ? row.customText.trim() : row.selected) === value
+        );
+        if (existing) return existing;
+        return SPOT_OPTIONS.includes(value)
+          ? { id: nextId++, selected: value, customText: "" }
+          : { id: nextId++, selected: "その他", customText: value };
+      });
+      while (nextRows.length < 2) nextRows.push(makeRow());
+      return nextRows;
+    });
+  }, [selected, rows]);
 
   // rowsからselectedを再計算してonChangeを呼ぶ
   const syncToParent = (newRows: SpotRow[]) => {

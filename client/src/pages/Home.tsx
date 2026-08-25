@@ -16,6 +16,7 @@ import { trpc } from "@/lib/trpc";
 import TripMap from "@/components/TripMap";
 import DateRangePicker from "@/components/DateRangePicker";
 import SpotSelector from "@/components/SpotSelector";
+import { createItineraryRequestSnapshot } from "@/lib/itineraryRequest";
 
 type AlternativePlan = {
   adjustment: string;
@@ -75,51 +76,9 @@ export default function Home() {
   const [errors, setErrors] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const markdownTableRef = useRef<string>("");
+  const activeGenerationIdRef = useRef(0);
 
-  // ChatGPT旅程生成
-  const generateItinerary = trpc.ai.generateItinerary.useMutation({
-    onSuccess: (data) => {
-      setItineraryResult(data);
-      markdownTableRef.current = data.markdownTable;
-      // routeの各地名をMAP_MARKERSのキーに正規化し、未知の地名はスキップ
-      const normalizedRoute = data.route
-        .map((loc: string) => normalizeLocation(loc))
-        .filter((loc: string) => loc in MAP_MARKERS);
-      // 出発地・終着地が含まれていない場合は先頭・末尾に補完
-      const normStart = normalizeLocation(startPoint);
-      const normEnd = normalizeLocation(endPoint);
-      const routeWithEnds = [...normalizedRoute];
-      if (normStart in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[0] !== normStart)) {
-        routeWithEnds.unshift(normStart);
-      }
-      if (normEnd in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[routeWithEnds.length - 1] !== normEnd)) {
-        routeWithEnds.push(normEnd);
-      }
-      setRouteLocations(routeWithEnds);
-      // markdownTableを使って結果表示用テキストを構築
-      // 判定メッセージとプラン名
-      const judgmentSection = data.judgmentMessage
-        ? `\n\n${data.judgmentMessage}`
-        : "";
-      const specialNotesSection = data.specialNotes.length > 0
-        ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
-        : "";
-      const markdown = `## 旅程表\n\n${data.markdownTable}${specialNotesSection}`;
-      setResult(markdown);
-      setShowResult(true);
-      setIsLoading(false);
-      setTimeout(() => {
-        const el = document.getElementById("result-area");
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    },
-    onError: (error) => {
-      console.error("旅程生成エラー:", error);
-      setResult("旅程の生成中にエラーが発生しました。しばらく後にお試しください。");
-      setShowResult(true);
-      setIsLoading(false);
-    },
-  });
+  const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
   const handleGenerate = useCallback(() => {
     const errs: string[] = [];
@@ -130,21 +89,57 @@ export default function Home() {
       setErrors(errs);
       return;
     }
-    setErrors([]);
-    setIsLoading(true);
-    // 日数計算
-    const diff = startDate && endDate
-      ? Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1)
-      : 1;
-
-    generateItinerary.mutate({
+    const submitted = createItineraryRequestSnapshot({
       startPoint,
       endPoint,
-      startDate: startDate ? `${startDate.getMonth() + 1}/${startDate.getDate()}` : null,
-      endDate: endDate ? `${endDate.getMonth() + 1}/${endDate.getDate()}` : null,
-      numDays: diff,
+      startDate,
+      endDate,
       mustVisit,
       niceToVisit,
+    });
+    const generationId = activeGenerationIdRef.current + 1;
+    activeGenerationIdRef.current = generationId;
+
+    setErrors([]);
+    setIsLoading(true);
+    setResult(null);
+    setItineraryResult(null);
+    setRouteLocations([]);
+    setShowResult(false);
+
+    generateItinerary.mutate(submitted, {
+      onSuccess: (data) => {
+        if (generationId !== activeGenerationIdRef.current) return;
+        setItineraryResult(data);
+        markdownTableRef.current = data.markdownTable;
+        const normalizedRoute = data.route
+          .map((loc: string) => normalizeLocation(loc))
+          .filter((loc: string) => loc in MAP_MARKERS);
+        const normStart = normalizeLocation(submitted.startPoint);
+        const normEnd = normalizeLocation(submitted.endPoint);
+        const routeWithEnds = [...normalizedRoute];
+        if (normStart in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[0] !== normStart)) {
+          routeWithEnds.unshift(normStart);
+        }
+        if (normEnd in MAP_MARKERS && (routeWithEnds.length === 0 || routeWithEnds[routeWithEnds.length - 1] !== normEnd)) {
+          routeWithEnds.push(normEnd);
+        }
+        setRouteLocations(routeWithEnds);
+        const specialNotesSection = data.specialNotes.length > 0
+          ? `\n\n**特記事項**\n${data.specialNotes.map(n => `- ${n}`).join("\n")}`
+          : "";
+        setResult(`## 旅程表\n\n${data.markdownTable}${specialNotesSection}`);
+        setShowResult(true);
+        setIsLoading(false);
+        setTimeout(() => document.getElementById("result-area")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+      },
+      onError: (error) => {
+        if (generationId !== activeGenerationIdRef.current) return;
+        console.error("旅程生成エラー:", error);
+        setResult("旅程の生成中にエラーが発生しました。しばらく後にお試しください。");
+        setShowResult(true);
+        setIsLoading(false);
+      },
     });
   }, [startPoint, endPoint, startDate, endDate, mustVisit, niceToVisit]);
 
