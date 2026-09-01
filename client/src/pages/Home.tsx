@@ -216,7 +216,7 @@ export default function Home() {
   const isJudgmentB = itineraryResult?.judgment === "B";
 
   return (
-    <div className="min-h-screen" style={{ background: "#FFFFFF", fontFamily: "'Noto Sans JP', sans-serif" }}>
+    <div className={IS_EMBED ? "" : "min-h-screen"} style={{ background: "#FFFFFF", fontFamily: "'Noto Sans JP', sans-serif" }}>
       {/* Header */}
       {!IS_EMBED && <header
         className="sticky top-0 z-50 border-b"
@@ -263,7 +263,7 @@ export default function Home() {
           style={{ borderRight: "1px solid #E5E7EB" }}
         >
           <div
-            className="lg:sticky lg:top-[60px] lg:max-h-[calc(100vh-60px)] lg:overflow-y-auto"
+            className={IS_EMBED ? "" : "lg:sticky lg:top-[60px] lg:max-h-[calc(100vh-60px)] lg:overflow-y-auto"}
           >
             <div className="p-5 space-y-5">
               {/* Hero text */}
