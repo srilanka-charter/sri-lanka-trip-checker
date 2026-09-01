@@ -5,7 +5,7 @@
  * Layout: Left form panel (sticky) + Right column (map → result scrollable)
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { MapPin, Calendar, Navigation, Star, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -17,6 +17,7 @@ import TripMap from "@/components/TripMap";
 import DateRangePicker from "@/components/DateRangePicker";
 import SpotSelector from "@/components/SpotSelector";
 import { createItineraryRequestSnapshot } from "@/lib/itineraryRequest";
+import { createLankamePayload, getEmbedConfig, sendToParent, type LankamePayload } from "@/lib/embedMessaging";
 
 type AlternativePlan = {
   adjustment: string;
@@ -27,6 +28,15 @@ type AlternativePlan = {
   route?: string[];
   days?: Array<{ date: string; segments: string; distance: number; time: number }>;
 };
+
+type ContactPayloadContext = Omit<LankamePayload, "type" | "version" | "variant" | "route" | "planName" | "judgment" | "itineraryText">;
+
+function formatPayloadDate(date: Date | null): string {
+  if (!date) return "";
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
 import { LOCATIONS, MAP_MARKERS } from "@/lib/locations";
 import { normalizeLocation } from "@/lib/distanceData";
 
@@ -75,8 +85,22 @@ export default function Home() {
   const [showResult, setShowResult] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [submittedPayloadContext, setSubmittedPayloadContext] = useState<ContactPayloadContext | null>(null);
   const markdownTableRef = useRef<string>("");
   const activeGenerationIdRef = useRef(0);
+  const { PARENT_ORIGIN, IS_EMBED } = getEmbedConfig();
+
+  useEffect(() => {
+    if (!IS_EMBED || window.parent === window) return;
+    const send = () => {
+      const height = document.documentElement.scrollHeight;
+      window.parent.postMessage({ type: "lankame:height", version: 1, height }, PARENT_ORIGIN);
+    };
+    const observer = new ResizeObserver(send);
+    observer.observe(document.body);
+    send();
+    return () => observer.disconnect();
+  }, [IS_EMBED, PARENT_ORIGIN]);
 
   const generateItinerary = trpc.ai.generateItinerary.useMutation();
 
@@ -97,6 +121,14 @@ export default function Home() {
       mustVisit,
       niceToVisit,
     });
+    const payloadContext: ContactPayloadContext = {
+      startPoint: submitted.startPoint,
+      endPoint: submitted.endPoint,
+      startDate: formatPayloadDate(startDate),
+      endDate: formatPayloadDate(endDate),
+      mustVisit: [...submitted.mustVisit],
+      niceToVisit: [...submitted.niceToVisit],
+    };
     const generationId = activeGenerationIdRef.current + 1;
     activeGenerationIdRef.current = generationId;
 
@@ -105,6 +137,7 @@ export default function Home() {
     setResult(null);
     setItineraryResult(null);
     setRouteLocations([]);
+    setSubmittedPayloadContext(payloadContext);
     setShowResult(false);
 
     generateItinerary.mutate(submitted, {
@@ -155,6 +188,7 @@ export default function Home() {
     setShowResult(false);
     setErrors([]);
     setItineraryResult(null);
+    setSubmittedPayloadContext(null);
     setCopied(false);
     markdownTableRef.current = "";
   };
@@ -184,7 +218,7 @@ export default function Home() {
   return (
     <div className="min-h-screen" style={{ background: "#FFFFFF", fontFamily: "'Noto Sans JP', sans-serif" }}>
       {/* Header */}
-      <header
+      {!IS_EMBED && <header
         className="sticky top-0 z-50 border-b"
         style={{
           background: "rgba(255,255,255,0.97)",
@@ -219,7 +253,7 @@ export default function Home() {
             </Badge>
           </div>
         </div>
-      </header>
+      </header>}
 
       {/* Main Layout: Left form (sticky) + Right scrollable content */}
       <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row">
@@ -443,8 +477,16 @@ export default function Home() {
                 >
                   <button
                     onClick={() => {
-                      handleCopyItinerary();
-                      // TODO: 問い合わせ遷移先を設定
+                      void handleCopyItinerary();
+                      if (!itineraryResult || !submittedPayloadContext) return;
+                      sendToParent(createLankamePayload({
+                        ...submittedPayloadContext,
+                        variant: "main",
+                        route: itineraryResult.route,
+                        planName: itineraryResult.planName,
+                        judgment: itineraryResult.judgment,
+                        itineraryText: markdownTableRef.current,
+                      }));
                     }}
                     className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
                     style={{
@@ -502,11 +544,12 @@ export default function Home() {
               )}
 
               {/* Alternative Plans - rendered as rich cards */}
-              {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && (
+              {itineraryResult?.alternatives && itineraryResult.alternatives.length > 0 && submittedPayloadContext && (
                 <AlternativePlansSection
                   alternatives={itineraryResult.alternatives}
                   startPoint={startPoint}
                   endPoint={endPoint}
+                  contactPayloadContext={submittedPayloadContext}
                 />
               )}
 
@@ -613,10 +656,12 @@ function AlternativePlansSection({
   alternatives,
   startPoint,
   endPoint,
+  contactPayloadContext,
 }: {
   alternatives: AlternativePlan[];
   startPoint: string;
   endPoint: string;
+  contactPayloadContext: ContactPayloadContext;
 }) {
   return (
     <div className="mt-8">
@@ -634,7 +679,7 @@ function AlternativePlansSection({
       </div>
       <div className="space-y-6">
         {alternatives.map((alt, idx) => (
-          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} startPoint={startPoint} endPoint={endPoint} />
+          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} startPoint={startPoint} endPoint={endPoint} contactPayloadContext={contactPayloadContext} />
         ))}
       </div>
     </div>
@@ -646,11 +691,13 @@ function AlternativePlanCard({
   index,
   startPoint,
   endPoint,
+  contactPayloadContext,
 }: {
   alt: AlternativePlan;
   index: number;
   startPoint: string;
   endPoint: string;
+  contactPayloadContext: ContactPayloadContext;
 }) {
   // 代替案のrouteを正規化して地図用に構築
   const altRoute = (() => {
@@ -743,7 +790,14 @@ function AlternativePlanCard({
         </div>
 
        {/* 代替案ごとのコピー＆問い合わせボタン */}
-        <ContactSection days={alt.days} />
+        <ContactSection
+          days={alt.days}
+          itineraryText={alt.markdownTable}
+          planName={alt.planName}
+          variant="alternative"
+          route={alt.route ?? altRoute}
+          contactPayloadContext={contactPayloadContext}
+        />
       </div>
     </div>
   );
@@ -767,7 +821,21 @@ function InfoChip({ label, text, color, bgColor }: { label: string; text: string
 
 // ===== Contact Section =====
 
-function ContactSection({ days }: { days?: Array<{ date: string; segments: string; distance: number; time: number }> }) {
+function ContactSection({
+  days,
+  itineraryText,
+  planName,
+  variant,
+  route,
+  contactPayloadContext,
+}: {
+  days?: Array<{ date: string; segments: string; distance: number; time: number }>;
+  itineraryText: string;
+  planName?: string;
+  variant: "alternative";
+  route: string[];
+  contactPayloadContext: ContactPayloadContext;
+}) {
   // 過密日警告：A（301km以上）またはB（6時間超）のどちらか一方のみを満たす日がある場合
   const busyDays = (days ?? []).filter(day => {
     // 遂行不可能（distance>300 かつ time>6）は除外
@@ -787,7 +855,13 @@ function ContactSection({ days }: { days?: Array<{ date: string; segments: strin
     >
       <button
         onClick={() => {
-          // TODO: 問い合わせ遷移先を設定
+          sendToParent(createLankamePayload({
+            ...contactPayloadContext,
+            variant,
+            route,
+            planName,
+            itineraryText,
+          }));
         }}
         className="w-full flex items-center justify-center gap-2 h-12 rounded-xl font-semibold text-sm transition-all duration-150 active:scale-[0.97]"
         style={{
