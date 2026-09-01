@@ -193,8 +193,8 @@ export default function Home() {
     markdownTableRef.current = "";
   };
 
-  const handleCopyItinerary = useCallback(async () => {
-    const text = markdownTableRef.current;
+  const handleCopyItinerary = useCallback(async (itineraryText = markdownTableRef.current) => {
+    const text = itineraryText;
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
@@ -403,11 +403,12 @@ export default function Home() {
 
         {/* Right: Map + Result (scrollable) */}
         <div className="flex-1 flex flex-col" id="result-area">
-          {/* Map - fixed height */}
+          {/* Map - aspect-ratio based height */}
           <div
             style={{
-              height: "70vh",
-              minHeight: "500px",
+              aspectRatio: "4 / 3",
+              minHeight: "320px",
+              maxHeight: "600px",
               width: "100%",
               position: "relative",
               borderBottom: "1px solid #E5E7EB",
@@ -550,6 +551,7 @@ export default function Home() {
                   startPoint={startPoint}
                   endPoint={endPoint}
                   contactPayloadContext={submittedPayloadContext}
+                  onCopyItinerary={handleCopyItinerary}
                 />
               )}
 
@@ -657,11 +659,13 @@ function AlternativePlansSection({
   startPoint,
   endPoint,
   contactPayloadContext,
+  onCopyItinerary,
 }: {
   alternatives: AlternativePlan[];
   startPoint: string;
   endPoint: string;
   contactPayloadContext: ContactPayloadContext;
+  onCopyItinerary: (itineraryText: string) => Promise<void>;
 }) {
   return (
     <div className="mt-8">
@@ -679,7 +683,7 @@ function AlternativePlansSection({
       </div>
       <div className="space-y-6">
         {alternatives.map((alt, idx) => (
-          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} startPoint={startPoint} endPoint={endPoint} contactPayloadContext={contactPayloadContext} />
+          <AlternativePlanCard key={idx} alt={alt} index={idx + 1} startPoint={startPoint} endPoint={endPoint} contactPayloadContext={contactPayloadContext} onCopyItinerary={onCopyItinerary} />
         ))}
       </div>
     </div>
@@ -692,12 +696,14 @@ function AlternativePlanCard({
   startPoint,
   endPoint,
   contactPayloadContext,
+  onCopyItinerary,
 }: {
   alt: AlternativePlan;
   index: number;
   startPoint: string;
   endPoint: string;
   contactPayloadContext: ContactPayloadContext;
+  onCopyItinerary: (itineraryText: string) => Promise<void>;
 }) {
   // 代替案のrouteを正規化して地図用に構築
   const altRoute = (() => {
@@ -797,6 +803,7 @@ function AlternativePlanCard({
           variant="alternative"
           route={alt.route ?? altRoute}
           contactPayloadContext={contactPayloadContext}
+          onCopyItinerary={onCopyItinerary}
         />
       </div>
     </div>
@@ -828,6 +835,7 @@ function ContactSection({
   variant,
   route,
   contactPayloadContext,
+  onCopyItinerary,
 }: {
   days?: Array<{ date: string; segments: string; distance: number; time: number }>;
   itineraryText: string;
@@ -835,6 +843,7 @@ function ContactSection({
   variant: "alternative";
   route: string[];
   contactPayloadContext: ContactPayloadContext;
+  onCopyItinerary: (itineraryText: string) => Promise<void>;
 }) {
   // 過密日警告：A（301km以上）またはB（6時間超）のどちらか一方のみを満たす日がある場合
   const busyDays = (days ?? []).filter(day => {
@@ -855,6 +864,7 @@ function ContactSection({
     >
       <button
         onClick={() => {
+          void onCopyItinerary(itineraryText);
           sendToParent(createLankamePayload({
             ...contactPayloadContext,
             variant,
