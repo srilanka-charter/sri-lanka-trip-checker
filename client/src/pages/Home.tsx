@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { MapPin, Calendar, Navigation, Star, Loader2, MessageCircle } from "lucide-react";
+import { MapPin, Calendar, Navigation, Loader2, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -330,8 +330,8 @@ export default function Home() {
                 </div>
               </FormSection>
 
-              {/* Must Visit */}
-              <FormSection icon={<MapPin size={16} />} title="必須で行きたい場所">
+              {/* Visit locations */}
+              <FormSection icon={<MapPin size={16} />} title="訪れたい場所">
                <SpotSelector
                  selected={mustVisit}
                  onChange={setMustVisit}
@@ -342,17 +342,6 @@ export default function Home() {
                 <p className="text-xs mt-3 leading-relaxed" style={{ color: "#374151" }}>
                   紅茶列車に乗車したい場合、現在の運行区間のヌワラエリヤ、エッラを選択してください。問い合わせ後に乗車区間や予約法についてご案内申し上げます。
                 </p>
-              </FormSection>
-
-              {/* Nice to Visit */}
-              <FormSection icon={<Star size={16} />} title="できたら行きたい場所">
-                <SpotSelector
-                  selected={niceToVisit}
-                  onChange={setNiceToVisit}
-                  exclude={[startPoint, endPoint, ...mustVisit]}
-                  color="#3B5BDB"
-                  placeholder=""
-                />
               </FormSection>
 
               {/* Errors */}
