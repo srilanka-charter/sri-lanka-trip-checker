@@ -265,7 +265,7 @@ export default function Home() {
           <div
             className={IS_EMBED ? "" : "lg:sticky lg:top-[60px] lg:max-h-[calc(100vh-60px)] lg:overflow-y-auto"}
           >
-            <div className="p-5 space-y-5">
+            <div className={`px-5 pb-5 space-y-5 ${IS_EMBED ? "pt-0" : "pt-5"}`}>
               {/* Hero text */}
               <div
                 className="rounded-xl p-4 relative overflow-hidden"
